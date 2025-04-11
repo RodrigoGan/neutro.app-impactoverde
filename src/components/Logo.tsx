@@ -39,9 +39,12 @@ const Logo: React.FC<LogoProps> = ({
           <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
             <rect width="400" height="400" fill="#a6cf45" />
             <path
-              d="M200 100 C 180 120, 160 200, 200 300 C 240 200, 220 120, 200 100 Z"
+              d="M320 200 C 300 100, 200 80, 150 120 C 100 160, 100 240, 150 280 C 200 320, 300 300, 320 200 Z"
               fill="#fff"
-              transform="rotate(0 200 200)"
+            />
+            <path
+              d="M250 200 C 240 160, 200 160, 180 180 C 160 200, 160 240, 180 260 C 200 280, 240 240, 250 200 Z"
+              fill="#a6cf45"
             />
           </svg>
         </div>
