@@ -3,6 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Leaf } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 const HeroSection: React.FC = () => {
   return (
@@ -38,9 +39,7 @@ const HeroSection: React.FC = () => {
             </div>
             <div className="w-full aspect-square md:aspect-auto md:h-[500px] bg-white rounded-2xl shadow-lg overflow-hidden p-6 flex items-center justify-center">
               <div className="text-center space-y-8">
-                <div className="mx-auto w-24 h-24 rounded-full bg-neutro/20 flex items-center justify-center">
-                  <Leaf className="h-12 w-12 text-neutro" />
-                </div>
+                <Logo size="lg" showSlogan={true} className="mx-auto" />
                 <div className="space-y-2">
                   <h3 className="text-xl font-bold">Calcule seu impacto</h3>
                   <p className="text-neutral-600">Transforme sua reciclagem em métricas ambientais</p>

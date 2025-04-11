@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Calculator from "./pages/Calculator";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import CollectorRegister from "./pages/register/CollectorRegister";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/calculator" element={<Calculator />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/register/collector" element={<CollectorRegister />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Droplet, Leaf, Zap, Wind } from 'lucide-react';
+import { Droplet, Leaf, Zap, Wind, Droplets, Cpu, Coins, Package, Trash } from 'lucide-react';
 
 interface CalculationResult {
   water: number;
@@ -46,6 +46,36 @@ const impactFactors = {
     trees: 0.00001, // árvores por grama (composting benefit)
     co2: 0.0005, // kg de CO2 por grama
   },
+  oil: {
+    water: 0.06, // litros por grama
+    energy: 0.012, // kWh por grama
+    trees: 0,
+    co2: 0.005, // kg de CO2 por grama
+  },
+  electronic: {
+    water: 0.05, // litros por grama
+    energy: 0.015, // kWh por grama
+    trees: 0,
+    co2: 0.006, // kg de CO2 por grama
+  },
+  copper: {
+    water: 0.03, // litros por grama
+    energy: 0.014, // kWh por grama
+    trees: 0,
+    co2: 0.0045, // kg de CO2 por grama
+  },
+  aluminum: {
+    water: 0.025, // litros por grama
+    energy: 0.016, // kWh por grama
+    trees: 0,
+    co2: 0.0055, // kg de CO2 por grama
+  },
+  can: {
+    water: 0.024, // litros por grama
+    energy: 0.015, // kWh por grama
+    trees: 0,
+    co2: 0.0053, // kg de CO2 por grama
+  },
 };
 
 const RecyclingCalculator: React.FC = () => {
@@ -69,6 +99,20 @@ const RecyclingCalculator: React.FC = () => {
     });
   };
 
+  // Material type icons mapping
+  const materialIcons = {
+    paper: <Leaf className="h-5 w-5 mr-2 text-neutro" />,
+    plastic: <Package className="h-5 w-5 mr-2 text-blue-500" />,
+    glass: <Droplet className="h-5 w-5 mr-2 text-cyan-500" />,
+    metal: <Coins className="h-5 w-5 mr-2 text-yellow-600" />,
+    organic: <Trash className="h-5 w-5 mr-2 text-green-600" />,
+    oil: <Droplets className="h-5 w-5 mr-2 text-olive-600" />,
+    electronic: <Cpu className="h-5 w-5 mr-2 text-purple-500" />,
+    copper: <Coins className="h-5 w-5 mr-2 text-amber-600" />,
+    aluminum: <Coins className="h-5 w-5 mr-2 text-gray-400" />,
+    can: <Package className="h-5 w-5 mr-2 text-red-500" />,
+  };
+
   return (
     <div className="max-w-2xl mx-auto p-4">
       <Card>
@@ -89,11 +133,56 @@ const RecyclingCalculator: React.FC = () => {
                 <SelectValue placeholder="Selecione o material" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="paper">Papel/Papelão</SelectItem>
-                <SelectItem value="plastic">Plástico</SelectItem>
-                <SelectItem value="glass">Vidro</SelectItem>
-                <SelectItem value="metal">Metal</SelectItem>
-                <SelectItem value="organic">Orgânico</SelectItem>
+                <SelectItem value="paper" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.paper} Papel/Papelão
+                  </div>
+                </SelectItem>
+                <SelectItem value="plastic" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.plastic} Plástico
+                  </div>
+                </SelectItem>
+                <SelectItem value="glass" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.glass} Vidro
+                  </div>
+                </SelectItem>
+                <SelectItem value="metal" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.metal} Metal
+                  </div>
+                </SelectItem>
+                <SelectItem value="organic" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.organic} Orgânico
+                  </div>
+                </SelectItem>
+                <SelectItem value="oil" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.oil} Óleo
+                  </div>
+                </SelectItem>
+                <SelectItem value="electronic" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.electronic} Eletrônico
+                  </div>
+                </SelectItem>
+                <SelectItem value="copper" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.copper} Cobre
+                  </div>
+                </SelectItem>
+                <SelectItem value="aluminum" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.aluminum} Alumínio
+                  </div>
+                </SelectItem>
+                <SelectItem value="can" className="flex items-center">
+                  <div className="flex items-center">
+                    {materialIcons.can} Latinha
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
