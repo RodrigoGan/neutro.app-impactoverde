@@ -1,0 +1,28 @@
+{
+  "name": "Neutro - Pequenos Gestos, Grandes Impactos",
+  "short_name": "Neutro",
+  "description": "Conectamos coletores, cooperativas e empresas para criar um ecossistema sustentável de reciclagem. Faça parte dessa transformação!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#22c55e",
+  "orientation": "portrait",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/logo-neutro.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo-neutro.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+} 

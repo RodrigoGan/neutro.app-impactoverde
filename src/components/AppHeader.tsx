@@ -1,20 +1,27 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, User, Bell } from 'lucide-react';
 import Logo from './Logo';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 const AppHeader: React.FC = () => {
   const isMobile = useIsMobile();
+  const { pathname } = useLocation();
 
   const navLinks = [
     { name: 'Início', path: '/' },
     { name: 'Calculadora', path: '/calculator' },
+    { name: 'Níveis', path: '/levels' },
     { name: 'Agendamentos', path: '/schedule' },
     { name: 'Parceiros', path: '/partners' },
+  ];
+
+  const actionButtons = [
+    { name: 'Entrar', path: '/login', variant: 'outline' as const },
+    { name: 'Cadastre-se', path: '/register', variant: 'default' as const }
   ];
 
   const NavLinks = () => (
@@ -23,12 +30,38 @@ const AppHeader: React.FC = () => {
         <Link
           key={link.path}
           to={link.path}
-          className="font-medium text-neutral-700 hover:text-neutro transition-colors"
+          className={cn(
+            "font-medium transition-colors",
+            pathname === link.path 
+              ? "text-neutro" 
+              : "text-neutral-700 hover:text-neutro"
+          )}
+          aria-current={pathname === link.path ? "page" : undefined}
         >
           {link.name}
         </Link>
       ))}
     </nav>
+  );
+
+  const ActionButtons = () => (
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" asChild>
+        <Link to="/notifications" aria-label="Notificações">
+          <Bell className="h-5 w-5" />
+        </Link>
+      </Button>
+      <Button variant="ghost" size="icon" asChild>
+        <Link to="/profile" aria-label="Perfil">
+          <User className="h-5 w-5" />
+        </Link>
+      </Button>
+      {actionButtons.map((button) => (
+        <Button key={button.path} variant={button.variant} asChild>
+          <Link to={button.path}>{button.name}</Link>
+        </Button>
+      ))}
+    </div>
   );
 
   return (
@@ -42,58 +75,40 @@ const AppHeader: React.FC = () => {
 
         {isMobile ? (
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" asChild>
-              <Link to="/notifications">
-                <Bell className="h-5 w-5" />
-              </Link>
-            </Button>
-            <Button variant="ghost" size="icon" asChild>
-              <Link to="/profile">
-                <User className="h-5 w-5" />
-              </Link>
-            </Button>
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" aria-label="Menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent>
+              <SheetContent side="right">
                 <div className="flex flex-col gap-6 mt-8">
                   <NavLinks />
                   <div className="space-y-2">
-                    <Button asChild className="w-full">
-                      <Link to="/register">Cadastre-se</Link>
-                    </Button>
-                    <Button asChild variant="outline" className="w-full">
-                      <Link to="/login">Entrar</Link>
-                    </Button>
+                    {actionButtons.map((button) => (
+                      <Button key={button.path} variant={button.variant} className="w-full" asChild>
+                        <Link to={button.path}>{button.name}</Link>
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </SheetContent>
             </Sheet>
+            <Button variant="ghost" size="icon" asChild>
+              <Link to="/notifications" aria-label="Notificações">
+                <Bell className="h-5 w-5" />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" asChild>
+              <Link to="/profile" aria-label="Perfil">
+                <User className="h-5 w-5" />
+              </Link>
+            </Button>
           </div>
         ) : (
           <div className="flex items-center gap-6">
             <NavLinks />
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/notifications">
-                  <Bell className="h-5 w-5" />
-                </Link>
-              </Button>
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/profile">
-                  <User className="h-5 w-5" />
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/login">Entrar</Link>
-              </Button>
-              <Button asChild>
-                <Link to="/register">Cadastre-se</Link>
-              </Button>
-            </div>
+            <ActionButtons />
           </div>
         )}
       </div>

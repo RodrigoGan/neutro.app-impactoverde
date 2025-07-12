@@ -1,0 +1,25 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="80" cy="80" r="70" fill="#E8F5E9" stroke="#388E3C" stroke-width="6"/>
+  <circle cx="80" cy="80" r="54" fill="#A5D6A7" stroke="#388E3C" stroke-width="3"/>
+  <g>
+    <ellipse cx="80" cy="80" rx="38" ry="38" fill="#fff" stroke="#66BB6A" stroke-width="2"/>
+    <path d="M80 55 Q90 70 80 85 Q70 70 80 55 Z" fill="#388E3C"/>
+    <path d="M80 85 Q90 100 80 115 Q70 100 80 85 Z" fill="#66BB6A"/>
+    <ellipse cx="80" cy="80" rx="10" ry="18" fill="#A5D6A7"/>
+    <path d="M80 62 Q85 80 80 98 Q75 80 80 62 Z" fill="#388E3C"/>
+  </g>
+  <g>
+    <rect x="30" y="130" width="24" height="36" rx="8" fill="#388E3C"/>
+    <rect x="106" y="130" width="24" height="36" rx="8" fill="#388E3C"/>
+    <polygon points="42,130 54,166 30,166" fill="#66BB6A"/>
+    <polygon points="118,130 130,166 106,166" fill="#66BB6A"/>
+  </g>
+  <g>
+    <path d="M60 40 Q80 10 100 40" stroke="#388E3C" stroke-width="3" fill="none"/>
+    <path d="M60 120 Q80 150 100 120" stroke="#388E3C" stroke-width="3" fill="none"/>
+    <ellipse cx="80" cy="80" rx="32" ry="12" fill="#C8E6C9" opacity="0.3"/>
+  </g>
+  <g>
+    <text x="80" y="90" text-anchor="middle" font-family="'Noto Serif', serif" font-size="22" fill="#388E3C" font-weight="bold">Neutro</text>
+  </g>
+</svg> 

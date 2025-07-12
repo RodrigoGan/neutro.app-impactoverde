@@ -1,7 +1,6 @@
-
 import React from 'react';
-import AppHeader from './AppHeader';
 import AppFooter from './AppFooter';
+// import TopNavBar from './ui/TopNavBar'; // Removido
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,7 +15,7 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   return (
     <div className="flex flex-col min-h-screen">
-      {!hideHeader && <AppHeader />}
+      {/* TopNavBar removido */}
       <main className="flex-1">{children}</main>
       {!hideFooter && <AppFooter />}
     </div>

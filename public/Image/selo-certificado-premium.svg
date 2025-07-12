@@ -1,0 +1,32 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="gold" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fffde4"/>
+      <stop offset="60%" stop-color="#ffe082"/>
+      <stop offset="100%" stop-color="#ffd600"/>
+    </radialGradient>
+  </defs>
+  <circle cx="80" cy="80" r="70" fill="url(#gold)" stroke="#bfa100" stroke-width="6"/>
+  <g>
+    <ellipse cx="80" cy="80" rx="54" ry="54" fill="#fffde4" stroke="#ffd600" stroke-width="3"/>
+    <path d="M80 30 Q90 60 80 90 Q70 60 80 30 Z" fill="#ffd600"/>
+    <path d="M80 90 Q100 120 80 140 Q60 120 80 90 Z" fill="#ffe082"/>
+    <ellipse cx="80" cy="80" rx="18" ry="32" fill="#fffde4"/>
+    <path d="M80 48 Q88 80 80 112 Q72 80 80 48 Z" fill="#ffd600"/>
+  </g>
+  <g>
+    <path d="M40 140 Q80 150 120 140" stroke="#bfa100" stroke-width="6" fill="none"/>
+    <rect x="30" y="130" width="24" height="36" rx="8" fill="#ffd600"/>
+    <rect x="106" y="130" width="24" height="36" rx="8" fill="#ffd600"/>
+    <polygon points="42,130 54,166 30,166" fill="#ffe082"/>
+    <polygon points="118,130 130,166 106,166" fill="#ffe082"/>
+  </g>
+  <g>
+    <path d="M60 40 Q80 10 100 40" stroke="#bfa100" stroke-width="3" fill="none"/>
+    <path d="M60 120 Q80 150 100 120" stroke="#bfa100" stroke-width="3" fill="none"/>
+    <ellipse cx="80" cy="80" rx="32" ry="12" fill="#ffd600" opacity="0.2"/>
+  </g>
+  <g>
+    <text x="80" y="90" text-anchor="middle" font-family="'Noto Serif', serif" font-size="20" fill="#bfa100" font-weight="bold">PREMIUM</text>
+  </g>
+</svg> 

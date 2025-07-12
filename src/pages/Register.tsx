@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,35 +10,36 @@ const userTypes = [
     icon: <Home className="h-8 w-8 text-neutro" />,
     title: 'Usuário Comum',
     description: 'Para quem deseja agendar coletas, calcular seu impacto e obter descontos em parceiros.',
-    path: '/register/user'
+    type: 'common'
   },
   {
     icon: <UserSearch className="h-8 w-8 text-neutro" />,
-    title: 'Coletor Individual',
-    description: 'Para coletores que desejam receber agendamentos e registrar suas coletas.',
-    path: '/register/collector'
+    title: 'Coletor',
+    description: 'Para catadores individuais que coletam e vendem materiais recicláveis.',
+    type: 'collector'
   },
   {
     icon: <Users className="h-8 w-8 text-neutro" />,
     title: 'Cooperativa',
-    description: 'Para cooperativas que desejam gerenciar equipes e receber agendamentos.',
-    path: '/register/cooperative'
+    description: 'Para cooperativas de catadores que trabalham com reciclagem.',
+    type: 'cooperative'
   },
   {
     icon: <Factory className="h-8 w-8 text-neutro" />,
     title: 'Empresa Coletora',
-    description: 'Para empresas que compram materiais recicláveis e desejam conectar-se com coletores.',
-    path: '/register/company'
+    description: 'Para empresas que coletam e processam materiais recicláveis.',
+    type: 'company'
   },
   {
     icon: <Store className="h-8 w-8 text-neutro" />,
-    title: 'Empresa Parceira',
-    description: 'Para empresas que desejam oferecer descontos e fortalecer sua marca sustentável.',
-    path: '/register/partner'
+    title: 'Parceiro',
+    description: 'Para estabelecimentos que desejam implementar práticas sustentáveis.',
+    type: 'partner'
   }
 ];
 
 const Register = () => {
+  const navigate = useNavigate();
   return (
     <Layout>
       <div className="container py-12 px-4 md:px-6">
@@ -59,8 +59,8 @@ const Register = () => {
                 <CardDescription>{type.description}</CardDescription>
               </CardHeader>
               <CardFooter>
-                <Button asChild className="w-full">
-                  <Link to={type.path}>Cadastrar como {type.title}</Link>
+                <Button className="w-full" onClick={() => navigate(`/register/new?type=${type.type}`)}>
+                  Cadastrar como {type.title}
                 </Button>
               </CardFooter>
             </Card>

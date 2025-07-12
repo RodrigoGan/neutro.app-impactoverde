@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Philosopher:wght@400;700&display=swap');
 
 @tailwind base;
@@ -115,18 +114,38 @@
   }
   
   .card-plan {
-    @apply flex flex-col p-6 mx-auto max-w-lg text-center rounded-lg border shadow-lg;
+    @apply relative flex flex-col mx-auto max-w-lg text-center rounded-2xl border shadow-lg overflow-hidden transition-all duration-300;
+  }
+  
+  .card-plan-header {
+    @apply p-6;
+  }
+  
+  .card-plan-content {
+    @apply p-6 bg-white;
   }
   
   .card-plan-bronze {
-    @apply card-plan bg-amber-50 border-bronze;
+    @apply card-plan hover:border-bronze/50 hover:shadow-md;
   }
   
   .card-plan-silver {
-    @apply card-plan bg-neutral-50 border-silver;
+    @apply card-plan hover:border-silver/50 hover:shadow-md;
   }
   
   .card-plan-gold {
-    @apply card-plan bg-yellow-50 border-gold;
+    @apply card-plan hover:border-gold/50 hover:shadow-md;
+  }
+  
+  .card-plan-icon {
+    @apply inline-flex p-3 rounded-lg mb-4;
+  }
+  
+  .card-plan-features {
+    @apply space-y-4 mb-6 text-left;
+  }
+  
+  .card-plan-feature {
+    @apply flex items-start gap-3;
   }
 }
