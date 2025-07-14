@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { FileText, Printer, ArrowLeft, CheckCircle, X, ChevronUp, ChevronDown, MessageSquare, CheckCircle2 } from 'lucide-react';
-import { standardCompanyRequests } from '@/components/dashboard/standard/mockData/standardCompanyRequests';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,20 +18,58 @@ import StandardMaterialList from '@/components/collection/StandardMaterialList';
 import StandardPhotoGallery from '@/components/collection/StandardPhotoGallery';
 import { materialDisplayData } from '@/config/materialDisplayData';
 import { AchievementAnimation } from '@/components/animations/AchievementAnimation';
+import AppFooter from '@/components/AppFooter';
 
 const statusBadge = {
-  'Aguardando': 'bg-yellow-100 text-yellow-700',
+  'Pendente': 'bg-yellow-100 text-yellow-700',
 };
 
 const CompanyRequests: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
+  const companyId = authUser?.entity?.id || 'f1b5c6d7-8d9e-0123-4ef0-567890123456';
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  const [requests, setRequests] = useState(standardCompanyRequests.filter(r => r.status === 'Aguardando'));
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [showColetaAceita, setShowColetaAceita] = useState(false);
+
+  // Buscar solicitações reais do banco
+  React.useEffect(() => {
+    async function fetchRequests() {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase
+          .from('collections')
+          .select('*')
+          .eq('collector_id', companyId)
+          .eq('status', 'Pendente')
+          .order('date', { ascending: false });
+        // Só lança erro se não for apenas ausência de dados
+        if (error && !data) throw error;
+        setRequests(data || []);
+      } catch (err: any) {
+        console.log('ERRO SUPABASE:', err);
+        // Trata qualquer erro 404 (Supabase REST) como vazio
+        const is404 = err?.status === 404 || (typeof err?.message === 'string' && err.message.includes('404'));
+        if (is404) {
+          setRequests([]);
+          setError(null);
+        } else {
+          setError('Erro ao buscar solicitações.');
+          setRequests([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (companyId) fetchRequests();
+  }, [companyId]);
 
   const handlePrint = (request) => {
     if (!request) return;
@@ -116,14 +155,16 @@ const CompanyRequests: React.FC = () => {
           <h1 className="text-2xl font-bold">Solicitações de Coleta</h1>
         </div>
         <div className="space-y-4">
-          {requests.length === 0 && (
+          {loading && <Card><CardContent className="py-8 text-center text-muted-foreground">Carregando solicitações...</CardContent></Card>}
+          {error && <Card><CardContent className="py-8 text-center text-red-500">{error}</CardContent></Card>}
+          {!loading && !error && requests.length === 0 && (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 Nenhuma solicitação pendente.
               </CardContent>
             </Card>
           )}
-          {requests.map(request => (
+          {!loading && !error && requests.length > 0 && requests.map(request => (
             <Card key={request.id}>
               <CardHeader
                 className="cursor-pointer"
@@ -306,6 +347,10 @@ const CompanyRequests: React.FC = () => {
           onComplete={() => setShowColetaAceita(false)}
         />
       )}
+      {/* Rodapé padrão com espaçamento */}
+      <div className="mt-8">
+        <AppFooter />
+      </div>
     </div>
   );
 };

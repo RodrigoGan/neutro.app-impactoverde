@@ -16,6 +16,7 @@ import html2canvas from 'html2canvas';
 import { materialDisplayData } from '@/config/materialDisplayData';
 import { getAllMaterials } from '@/lib/collectorService';
 import { getMaterialIdentificador } from '@/lib/utils';
+import AppFooter from '@/components/AppFooter';
 
 // Nova interface unificada para transações
 interface TransactionParty {
@@ -33,6 +34,7 @@ interface MaterialEntry {
     unit: string;
     pricePerUnit: number;
     subtotal: number;
+    description?: string; // Adicionado para armazenar a descrição
 }
 
 type TransactionStatus =
@@ -198,7 +200,8 @@ const SellRecyclables: React.FC = () => {
                 quantity: mat.quantity,
                 unit: mat.unit,
                 pricePerUnit: mat.pricePerUnit,
-                subtotal: mat.subtotal
+                subtotal: mat.subtotal,
+                description: mat.description // Adicionado para salvar a descrição
             })),
             totalAmount,
             notes,
@@ -426,59 +429,70 @@ const SellRecyclables: React.FC = () => {
                             </div>
                             <div className="space-y-3 pt-2 px-2 sm:px-4">
                                 {materials.map(mat => (
-                                    <div key={mat.id} className="grid grid-cols-[180px_70px_50px_90px_40px] gap-2 items-end">
-                                        <div>
-                                            <Label htmlFor={`material-${mat.id}`} className="sr-only">Tipo de Material</Label>
-                                            <Select 
-                                                value={mat.type}
-                                                onValueChange={(value) => handleMaterialChange(mat.id, 'type', value)}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Tipo" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {renderMaterialOptions()}
-                                                </SelectContent>
-                                            </Select>
+                                    <React.Fragment key={mat.id}>
+                                        <div className="grid grid-cols-[180px_70px_50px_90px_40px] gap-2 items-end">
+                                            <div>
+                                                <Label htmlFor={`material-${mat.id}`} className="sr-only">Tipo de Material</Label>
+                                                <Select 
+                                                    value={mat.type}
+                                                    onValueChange={(value) => handleMaterialChange(mat.id, 'type', value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Tipo" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {renderMaterialOptions()}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="flex items-center justify-center">
+                                                <Label htmlFor={`quantity-${mat.id}`} className="sr-only">Quantidade</Label>
+                                                <Input
+                                                    id={`quantity-${mat.id}`}
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.1"
+                                                    value={mat.quantity}
+                                                    onChange={(e) => handleMaterialChange(mat.id, 'quantity', e.target.value)}
+                                                    className="text-center"
+                                                />
+                                            </div>
+                                            <div className="text-center text-sm text-gray-500 flex items-center justify-center h-10">
+                                                {mat.unit}
+                                            </div>
+                                            <div className="flex items-center justify-end">
+                                                <Label htmlFor={`price-${mat.id}`} className="sr-only">Preço por Unidade</Label>
+                                                <Input
+                                                    id={`price-${mat.id}`}
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={mat.pricePerUnit}
+                                                    onChange={(e) => handleMaterialChange(mat.id, 'pricePerUnit', e.target.value)}
+                                                    className="text-right"
+                                                />
+                                            </div>
+                                            <div className="flex items-center justify-center">
+                                                <Button 
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() => handleRemoveMaterial(mat.id)}
+                                                    className="flex-shrink-0"
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                                </Button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center justify-center">
-                                            <Label htmlFor={`quantity-${mat.id}`} className="sr-only">Quantidade</Label>
-                                            <Input
-                                                id={`quantity-${mat.id}`}
-                                                type="number"
-                                                min="0"
-                                                step="0.1"
-                                                value={mat.quantity}
-                                                onChange={(e) => handleMaterialChange(mat.id, 'quantity', e.target.value)}
-                                                className="text-center"
-                                            />
-                                        </div>
-                                        <div className="text-center text-sm text-gray-500 flex items-center justify-center h-10">
-                                            {mat.unit}
-                                        </div>
-                                        <div className="flex items-center justify-end">
-                                            <Label htmlFor={`price-${mat.id}`} className="sr-only">Preço por Unidade</Label>
-                                            <Input
-                                                id={`price-${mat.id}`}
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                value={mat.pricePerUnit}
-                                                onChange={(e) => handleMaterialChange(mat.id, 'pricePerUnit', e.target.value)}
-                                                className="text-right"
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-center">
-                                            <Button 
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() => handleRemoveMaterial(mat.id)}
-                                                className="flex-shrink-0"
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
-                                        </div>
-                                    </div>
+                                        {mat.type === 'outros' && (
+                                            <div className="col-span-full mt-2 mb-4">
+                                                <Textarea
+                                                    placeholder="Descreva quais materiais está vendendo (ex: sucata, resíduos especiais...)"
+                                                    value={mat.description || ''}
+                                                    onChange={e => handleMaterialChange(mat.id, 'description', e.target.value)}
+                                                />
+                                            </div>
+                                        )}
+                                    </React.Fragment>
                                 ))}
                             </div>
                             <Button variant="outline" className="mt-4 w-full" onClick={handleAddMaterial}>
@@ -538,7 +552,7 @@ const SellRecyclables: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="border-b py-4 mb-4">
-                                    <div className="font-semibold mb-2">Comprador</div>
+                                    <div className="font-semibold">Comprador</div>
                                     <div>{selectedSale.receiver.type === 'cooperative' ? 'Cooperativa' : 'Coletor Individual'}</div>
                                     {selectedSale.receiver.isLinked && (
                                         <div className="text-sm text-gray-500">
@@ -622,6 +636,10 @@ const SellRecyclables: React.FC = () => {
                         ))}
                     </div>
                 )}
+            </div>
+            {/* Rodapé padrão com espaçamento */}
+            <div className="mt-8">
+                <AppFooter />
             </div>
         </div>
     );

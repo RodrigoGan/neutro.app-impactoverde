@@ -202,7 +202,7 @@ const mockUsers = [
 
 const StandardDashboard: React.FC = () => {
   // Estado para controlar o usuário selecionado
-  const { user: authUser, loading: authLoading } = useAuth();
+  const { user: authUser, loading: authLoading, setUser } = useAuth();
   const initialUserId = React.useMemo(() => {
     if (authUser) {
       const match = mockUsers.find(u => u.userType === authUser.user_type);
@@ -375,6 +375,8 @@ const StandardDashboard: React.FC = () => {
   const handleUserChange = (value: string) => {
     const newUserId = value;
     setSelectedUserId(newUserId);
+    const newUser = mockUsers.find(u => u.id === newUserId);
+    if (newUser) setUser(newUser); // Força o AuthContext a usar o mock selecionado
     // Atualiza o estado da navegação para manter o usuário selecionado
     window.history.replaceState(
       { ...window.history.state, usr: { userId: newUserId } },
@@ -715,11 +717,25 @@ const StandardDashboard: React.FC = () => {
                           ? '8 cupons'
                           : '20 aulas'
               }
-              onViewAll={() =>
-                selectedUser.userType === 'collector_company_owner'
-                  ? navigate('/company/team-members')
-                  : navigate('/employees')
-              }
+              onViewAll={() => {
+                if (selectedUser.userType === 'collector_company_owner') {
+                  navigate('/company/team-members', {
+                    state: {
+                      entityId: linkedEntity?.id,
+                      type: linkedEntity?.type,
+                      entityName: linkedEntity?.name
+                    }
+                  });
+                } else {
+                  navigate('/partner/team-members-list?type=' + (linkedEntity?.type || 'restaurant'), {
+                    state: {
+                      entityId: linkedEntity?.id,
+                      type: linkedEntity?.type,
+                      entityName: linkedEntity?.name
+                    }
+                  });
+                }
+              }}
             />
           )}
 

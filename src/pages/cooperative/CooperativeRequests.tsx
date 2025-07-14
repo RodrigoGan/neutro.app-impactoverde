@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ClipboardList, FileText, Printer, ArrowLeft, CheckCircle, X, ChevronUp, ChevronDown, MessageSquare, CheckCircle2 } from 'lucide-react';
-import { standardCooperativeRequests } from '@/components/dashboard/standard/mockData/standardCooperativeRequests';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,6 +16,9 @@ import StandardMaterialList from '@/components/collection/StandardMaterialList';
 import StandardPhotoGallery from '@/components/collection/StandardPhotoGallery';
 import { materialDisplayData } from '@/config/materialDisplayData';
 import { AchievementAnimation } from '@/components/animations/AchievementAnimation';
+import { useActiveSchedules } from '@/hooks/useActiveSchedules';
+import { useAuth } from '@/contexts/AuthContext';
+import AppFooter from '../../components/AppFooter';
 
 const statusBadge = {
   'Aguardando': 'bg-yellow-100 text-yellow-700',
@@ -24,13 +26,43 @@ const statusBadge = {
 
 const CooperativeRequests: React.FC = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const entityId = user?.entity_id || user?.entity?.id;
+
+  // HOOKS DEVEM VIR PRIMEIRO!
+  const { schedules: requests, loading, error, refresh } = useActiveSchedules({
+    userType: 'cooperative',
+    entityId,
+    page: 1,
+    pageSize: 20,
+  });
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  const [requests, setRequests] = useState(standardCooperativeRequests.filter(r => r.status === 'Aguardando'));
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [showColetaAceita, setShowColetaAceita] = useState(false);
+
+  // Logs de depuração
+  console.log('[CooperativeRequests] user:', user);
+  console.log('[CooperativeRequests] entityId:', entityId);
+
+  // Friendly state de loading enquanto o AuthContext está carregando ou o usuário ainda não tem entity
+  if (authLoading || !user || (user.userType?.includes('cooperative') && !user.entity)) {
+    return (
+      <div style={{ padding: 24, textAlign: 'center' }}>Carregando dados da cooperativa...</div>
+    );
+  }
+
+  // Só exibe o erro se loading terminou e não tem entityId
+  if (user.userType?.includes('cooperative') && !entityId) {
+    return (
+      <div style={{ padding: 24, textAlign: 'center', color: 'red' }}>
+        Erro: Cooperativa não encontrada no perfil do usuário.<br />
+        Verifique se o usuário logado possui o campo entity preenchido.
+      </div>
+    );
+  }
 
   const handlePrint = () => {
     if (!selectedRequest) return;
@@ -82,9 +114,9 @@ const CooperativeRequests: React.FC = () => {
 
   const handleReject = () => {
     if (!selectedRequest || !rejectReason.trim()) return;
-    setRequests(prevRequests =>
-      prevRequests.filter(request => request.id !== selectedRequest.id)
-    );
+    // Aqui você pode adicionar a lógica para recusar a solicitação no banco de dados
+    // Por enquanto, apenas removemos da lista local
+    refresh(); // Atualiza a lista para refletir a recusa
     toast.success('Solicitação recusada com sucesso!');
     setShowRejectDialog(false);
     setSelectedRequest(null);
@@ -93,138 +125,151 @@ const CooperativeRequests: React.FC = () => {
 
   const handleAccept = () => {
     if (!selectedRequest) return;
-    setRequests(prevRequests =>
-      prevRequests.filter(request => request.id !== selectedRequest.id)
-    );
-    // Aqui você pode adicionar a lógica para criar uma nova coleta (mock)
-    setShowAcceptDialog(false);
-    setSelectedRequest(null);
-    
+    // Aqui você pode adicionar a lógica para aceitar a solicitação no banco de dados
+    // Por enquanto, apenas removemos da lista local
+    refresh(); // Atualiza a lista para refletir a aceitação
     // Mostrar animação de sucesso
     setShowColetaAceita(true);
+    setSelectedRequest(null);
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 px-2 py-1 text-base hover:bg-muted"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            Voltar
-          </Button>
-          <h1 className="text-2xl font-bold">Solicitações de Coleta</h1>
-        </div>
-        <div className="space-y-4">
-          {requests.length === 0 && (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Nenhuma solicitação pendente.
-              </CardContent>
-            </Card>
-          )}
-          {requests.map(request => (
-            <Card key={request.id}>
-              <CardHeader
-                className="cursor-pointer"
-                onClick={() => setExpandedCardId(expandedCardId === request.id ? null : request.id)}
-              >
-                <CardTitle className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={request.avatar} />
-                    <AvatarFallback>{request.company.slice(0,2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-base">{request.company}</span>
-                      <Badge className={statusBadge[request.status] || ''}>{request.status}</Badge>
+    <div className="min-h-screen flex flex-col bg-muted/40">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-4 mb-6">
+            <Button
+              variant="ghost"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 px-2 py-1 text-base hover:bg-muted"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              Voltar
+            </Button>
+            <h1 className="text-2xl font-bold">Solicitações de Coleta</h1>
+          </div>
+          <div className="space-y-4">
+            {loading && <Card><CardContent className="py-8 text-center text-muted-foreground">Carregando solicitações...</CardContent></Card>}
+            {error && typeof error === 'string' && error.includes('400') ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Nenhuma solicitação pendente no momento.
+                </CardContent>
+              </Card>
+            ) : error && (
+              <Card>
+                <CardContent className="py-8 text-center text-red-500">
+                  Erro ao buscar agendamentos ativos
+                </CardContent>
+              </Card>
+            )}
+            {!loading && !error && requests.length === 0 && (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Nenhuma solicitação pendente no momento.
+                </CardContent>
+              </Card>
+            )}
+            {requests.map(request => (
+              <Card key={request.id}>
+                <CardHeader
+                  className="cursor-pointer"
+                  onClick={() => setExpandedCardId(expandedCardId === request.id ? null : request.id)}
+                >
+                  <CardTitle className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={request.avatar} />
+                      <AvatarFallback>{request.company.slice(0,2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-base">{request.company}</span>
+                        <Badge className={statusBadge[request.status] || ''}>{request.status}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground flex flex-col gap-0.5">
+                        <span><b>Endereço:</b> {request.address}</span>
+                        <span><b>Data:</b> {new Date(request.date).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground flex flex-col gap-0.5">
-                      <span><b>Endereço:</b> {request.address}</span>
-                      <span><b>Data:</b> {new Date(request.date).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <button
-                    className="ml-2"
-                    onClick={e => { e.stopPropagation(); setExpandedCardId(expandedCardId === request.id ? null : request.id); }}
-                    aria-label={expandedCardId === request.id ? 'Recolher' : 'Expandir'}
-                  >
-                    {expandedCardId === request.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                  </button>
-                </CardTitle>
-              </CardHeader>
-              {expandedCardId === request.id && (
-                <div className="px-4 pb-4 border-t bg-muted/50 animate-fade-in">
-                  <Separator className="mb-4" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="font-medium mb-2">Empresa</h4>
-                      <div className="flex items-center gap-4">
-                        <Avatar>
-                          <AvatarImage src={request.avatar} />
-                          <AvatarFallback>{request.company.slice(0,2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p>{request.company}</p>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Badge className={statusBadge[request.status] || ''}>{request.status}</Badge>
+                    <button
+                      className="ml-2"
+                      onClick={e => { e.stopPropagation(); setExpandedCardId(expandedCardId === request.id ? null : request.id); }}
+                      aria-label={expandedCardId === request.id ? 'Recolher' : 'Expandir'}
+                    >
+                      {expandedCardId === request.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </button>
+                  </CardTitle>
+                </CardHeader>
+                {expandedCardId === request.id && (
+                  <div className="px-4 pb-4 border-t bg-muted/50 animate-fade-in">
+                    <Separator className="mb-4" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-medium mb-2">Empresa</h4>
+                        <div className="flex items-center gap-4">
+                          <Avatar>
+                            <AvatarImage src={request.avatar} />
+                            <AvatarFallback>{request.company.slice(0,2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p>{request.company}</p>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <Badge className={statusBadge[request.status] || ''}>{request.status}</Badge>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                    <div>
-                      <h4 className="font-medium mb-2">Prioridade</h4>
-                      <span>{request.priority}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <h4 className="font-medium mb-2">Materiais</h4>
-                      <StandardMaterialList materiais={request.materiais} />
-                    </div>
-                    <div className="col-span-2">
-                      <h4 className="font-medium mb-2">Fotos dos Materiais</h4>
-                      <StandardPhotoGallery fotos={request.fotos || []} />
-                    </div>
-                    <div className="col-span-2">
-                      <h4 className="font-medium mb-2">Observações</h4>
-                      <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <MessageSquare className="h-4 w-4 mt-0.5" />
-                        <p className="whitespace-pre-line">{request.observacoes}</p>
+                      <div>
+                        <h4 className="font-medium mb-2">Prioridade</h4>
+                        <span>{request.priority}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <h4 className="font-medium mb-2">Materiais</h4>
+                        <StandardMaterialList materiais={request.materiais} />
+                      </div>
+                      <div className="col-span-2">
+                        <h4 className="font-medium mb-2">Fotos dos Materiais</h4>
+                        <StandardPhotoGallery fotos={request.fotos || []} />
+                      </div>
+                      <div className="col-span-2">
+                        <h4 className="font-medium mb-2">Observações</h4>
+                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <MessageSquare className="h-4 w-4 mt-0.5" />
+                          <p className="whitespace-pre-line">{request.observacoes}</p>
+                        </div>
+                      </div>
+                      <div className="col-span-2 flex flex-col sm:flex-row items-stretch gap-4 mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setShowAcceptDialog(true);
+                          }}
+                          className="flex items-center gap-2 text-green-600 hover:text-green-700"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Aceitar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setShowRejectDialog(true);
+                          }}
+                          className="flex items-center gap-2 text-red-600 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                          Recusar
+                        </Button>
                       </div>
                     </div>
-                    <div className="col-span-2 flex flex-col sm:flex-row items-stretch gap-4 mt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedRequest(request);
-                          setShowAcceptDialog(true);
-                        }}
-                        className="flex items-center gap-2 text-green-600 hover:text-green-700"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Aceitar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedRequest(request);
-                          setShowRejectDialog(true);
-                        }}
-                        className="flex items-center gap-2 text-red-600 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                        Recusar
-                      </Button>
-                    </div>
                   </div>
-                </div>
-              )}
-            </Card>
-          ))}
+                )}
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
       {/* Modal de Recusa */}
@@ -309,6 +354,10 @@ const CooperativeRequests: React.FC = () => {
           onComplete={() => setShowColetaAceita(false)}
         />
       )}
+      <div className="flex-1" />
+      <div className="mt-8">
+        <AppFooter />
+      </div>
     </div>
   );
 };

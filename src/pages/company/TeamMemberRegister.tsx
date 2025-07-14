@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ChevronLeft, Users } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 const FUNCTION_OPTIONS = [
   'Gerente',
@@ -28,6 +30,8 @@ const CARD_PERMISSIONS = [
 
 const TeamMemberRegister: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const companyId = user?.entity?.id;
   const [functionValue, setFunctionValue] = useState('');
   const [customFunction, setCustomFunction] = useState('');
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
@@ -65,13 +69,37 @@ const TeamMemberRegister: React.FC = () => {
     setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors = validate();
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-    // Aqui você pode implementar o envio dos dados
-    // Exemplo: toast.success('Funcionário cadastrado com sucesso!');
+    if (!companyId) {
+      alert('ID da empresa não encontrado.');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('users').insert([
+        {
+          name: form.name,
+          email: form.email,
+          password: form.password, // Atenção: normalmente o cadastro de senha é feito via auth, ajuste conforme fluxo real
+          phone: form.phone,
+          admission: form.admission,
+          notes: form.notes,
+          user_type: 'employee',
+          entity_id: companyId,
+          role: functionValue === 'Outra' ? customFunction : functionValue,
+          status: 'Ativo',
+          permissions: permissions,
+        }
+      ]);
+      if (error) throw error;
+      // Exemplo: toast.success('Funcionário cadastrado com sucesso!');
+      navigate(-1);
+    } catch (err) {
+      alert('Erro ao cadastrar funcionário.');
+    }
   };
 
   return (

@@ -13,6 +13,7 @@ import { BatchActionsBar } from '@/components/notifications/BatchActionsBar';
 import { useNotificationActions } from '@/hooks/useNotificationActions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
+import AppFooter from '@/components/AppFooter';
 
 const mockUsers = [
   { id: '1', name: 'João Silva', profile: 'coletor' },
@@ -441,6 +442,10 @@ const NotificationsPage: React.FC = () => {
           notification={selectedColetaBairroNotification}
         />
       )}
+      {/* Rodapé padrão com espaçamento */}
+      <div className="mt-8">
+        <AppFooter />
+      </div>
     </div>
   );
 };

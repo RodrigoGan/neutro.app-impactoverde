@@ -25,7 +25,7 @@ export interface TeamData {
   averagePoints?: number;
 }
 
-export const useTeamManagement = (entityId?: string, entityType?: string) => {
+const useTeamManagement = (entityId?: string, entityType?: string) => {
   const [teamData, setTeamData] = useState<TeamData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +87,8 @@ export const useTeamManagement = (entityId?: string, entityType?: string) => {
           }));
 
         } else if (entityType === 'collector_company') {
-          // Buscar membros da empresa coletora
-          const { data: companyMembers, error: companyError } = await supabase
+          // Buscar funcionários da empresa coletora
+          const { data: companyEmployees, error: companyError } = await supabase
             .from('users')
             .select(`
               id,
@@ -97,33 +97,28 @@ export const useTeamManagement = (entityId?: string, entityType?: string) => {
               role,
               avatar_url,
               created_at,
-              user_progress (
-                total_points,
-                current_level
-              )
+              status,
+              permissions
             `)
             .eq('entity_id', entityId)
-            .eq('user_type', 'individual_collector');
+            .eq('user_type', 'employee');
 
           if (companyError) {
             setTeamData({ members: [], totalMembers: 0, activeMembers: 0 });
             setLoading(false);
-            setError('Erro ao buscar membros da empresa.');
+            setError('Erro ao buscar funcionários da empresa.');
             return;
           }
 
-          members = (companyMembers || []).map(member => ({
+          members = (companyEmployees || []).map(member => ({
             id: member.id,
             name: member.name,
             email: member.email,
-            role: member.role || 'Coletor',
+            role: member.role || 'Funcionário',
             avatar: member.avatar_url,
-            status: 'active' as const,
+            status: member.status === 'Ativo' ? 'active' : 'inactive',
             joinDate: member.created_at,
-            performance: {
-              points: member.user_progress?.[0]?.total_points || 0,
-              rating: member.user_progress?.[0]?.current_level || 1
-            }
+            permissions: member.permissions || {},
           }));
 
         } else if (entityType === 'partner') {
@@ -197,4 +192,27 @@ export const useTeamManagement = (entityId?: string, entityType?: string) => {
     loading,
     error
   };
-}; 
+};
+
+// Função para editar funcionário (fora do hook!)
+async function updateEmployee({ id, name, email, phone, role, status, permissions }: {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  status: string;
+  permissions: Record<string, boolean>;
+}) {
+  const { error } = await supabase.from('users').update({
+    name,
+    email,
+    phone,
+    role,
+    status,
+    permissions
+  }).eq('id', id);
+  return error;
+}
+
+export { useTeamManagement, updateEmployee }; 

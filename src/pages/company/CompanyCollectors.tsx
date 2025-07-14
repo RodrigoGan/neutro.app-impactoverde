@@ -8,41 +8,58 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Calendar, MapPin, Star, UserPlus, ChevronLeft, Smartphone } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 const CompanyCollectors: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading: authLoading } = useAuth();
+  const companyId = user?.entity?.id || location.state?.userId;
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('todos');
+  const [collectors, setCollectors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Dados de exemplo - serão substituídos por dados reais
-  const collectors = [
-    {
-      id: 1,
-      name: 'João Silva',
-      avatar: '/placeholder-avatar.jpg',
-      hasSmartphone: true,
-      location: 'Jardim Paulista',
-      rating: 4.8,
-      status: 'Ativo',
-      collectionsToday: 3
-    },
-    {
-      id: 2,
-      name: 'Maria Santos',
-      avatar: '/placeholder-avatar.jpg',
-      hasSmartphone: false,
-      location: 'Vila Mariana',
-      rating: 4.9,
-      status: 'Ativo',
-      collectionsToday: 0
-    },
-    // Adicionar mais coletores conforme necessário
-  ];
+  // Buscar coletores reais do banco ao carregar
+  useEffect(() => {
+    async function fetchCollectors() {
+      if (!companyId) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('entity_id', companyId)
+          .eq('user_type', 'collector');
+        if (error) throw error;
+        // Mapear para o formato esperado pela UI
+        const mapped = (data || []).map((col: any) => ({
+          id: col.id,
+          name: col.name || 'Coletor',
+          avatar: col.avatar_url || '/placeholder-avatar.jpg',
+          hasSmartphone: !!col.has_app,
+          location: col.location || col.address || '',
+          rating: col.rating || 0,
+          status: col.status || 'Ativo',
+          collectionsToday: col.collections_today || 0,
+        }));
+        setCollectors(mapped);
+      } catch (err: any) {
+        setError('Erro ao buscar coletores da empresa.');
+        setCollectors([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (companyId) fetchCollectors();
+  }, [companyId]);
 
   const filteredCollectors = collectors
     .filter(collector =>
@@ -120,6 +137,15 @@ const CompanyCollectors: React.FC = () => {
           </div>
 
           {/* Lista de Coletores */}
+          {loading && (
+            <div className="text-center py-8 text-muted-foreground">Carregando coletores...</div>
+          )}
+          {error && (
+            <div className="text-center py-8 text-red-500">{error}</div>
+          )}
+          {!loading && !error && filteredCollectors.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">Nenhum coletor encontrado.</div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredCollectors.map((collector) => (
               <Card key={collector.id} className="hover:shadow-md transition-shadow">

@@ -21,6 +21,7 @@ import StandardPhotoGallery from '@/components/collection/StandardPhotoGallery';
 import StandardEditCollectionModal from '@/components/collection/StandardEditCollectionModal';
 import StandardRegisterCollectionModal from '@/components/collection/StandardRegisterCollectionModal';
 import { AchievementAnimation } from '@/components/animations/AchievementAnimation';
+import AppFooter from '@/components/AppFooter';
 
 const STATUS_OPTIONS = ['Todas', 'Agendada', 'Em Andamento'];
 
@@ -701,6 +702,10 @@ const CompanyCollections: React.FC = () => {
           onComplete={() => setShowSuccessAnimation(false)}
         />
       )}
+      {/* Rodapé padrão com espaçamento */}
+      <div className="mt-8">
+        <AppFooter />
+      </div>
     </div>
   );
 };

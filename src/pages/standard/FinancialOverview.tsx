@@ -19,6 +19,7 @@ import {
 import { materialDisplayData } from '@/config/materialDisplayData';
 import { getMaterialIdentificador } from '@/lib/utils';
 import { supabase } from '@/lib/supabaseClient';
+import AppFooter from '@/components/AppFooter';
 
 // Remover mockData e mockParceiroDetalhado
 
@@ -286,7 +287,7 @@ const FinancialOverview: React.FC = () => {
   const destaqueInfo = resumo && resumo.destaque ? (materialDisplayData[getMaterialIdentificador(resumo.destaque)] || materialDisplayData.outros) : null;
 
   return (
-    <div className="container mx-auto py-8 max-w-4xl">
+    <div className="container mx-auto px-4 py-8">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -534,6 +535,10 @@ const FinancialOverview: React.FC = () => {
       }}>
         {(perfil as string) === 'parceiro' ? 'Ver histórico de cupons' : 'Ver Histórico de Vendas'}
         </Button>
+      {/* Rodapé padrão com espaçamento */}
+      <div className="mt-8">
+        <AppFooter />
+      </div>
     </div>
   );
 };

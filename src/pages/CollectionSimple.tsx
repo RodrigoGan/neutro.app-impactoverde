@@ -29,6 +29,7 @@ import { AchievementAnimation } from '@/components/animations/AchievementAnimati
 import { getAllMaterials } from '@/lib/collectorService';
 import { materialDisplayData } from '@/config/materialDisplayData';
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 // TODO: Importar componentes reutilizáveis (endereços, materiais, coletores, etc)
 // import AddressSection from '@/components/AddressSection';
@@ -107,7 +108,7 @@ function toProjectAddress(addr: AddressSectionAddress): ProjectAddress {
 interface Address {
   id: string;
   tipo: string; // 'principal' ou 'secundario' ou outro tipo se necessário
-  endereco: string; // Rua, Av, etc.
+  logradouro: string; // Rua, Av, etc.
   numero?: string;
   complemento?: string;
   referencia?: string;
@@ -123,7 +124,7 @@ const USER_ENDERECOS_MOCK: Address[] = [
   {
     id: '1',
     tipo: 'principal',
-    endereco: 'Rua das Flores mockadas para usuário',
+    logradouro: 'Rua das Flores mockadas para usuário',
     numero: '123',
     bairro: 'Jardim Primavera',
     cidade: 'São Paulo',
@@ -134,7 +135,7 @@ const USER_ENDERECOS_MOCK: Address[] = [
   {
     id: '2',
     tipo: 'secundario',
-    endereco: 'Av. Paulista mockada para usuário',
+    logradouro: 'Av. Paulista mockada para usuário',
     numero: '1000',
     bairro: 'Bela Vista',
     cidade: 'São Paulo',
@@ -244,6 +245,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profileType = 'user', entityId, partnerType: partnerRouteParam } = location.state || {} as { profileType: 'user' | 'partner', entityId?: string, partnerType?: string };
+  const { user } = useAuth();
 
   // Estados para materiais
   const [tabMaterial, setTabMaterial] = useState<'separados' | 'misturados'>('separados');
@@ -271,19 +273,26 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
   const [errosFormMaterial, setErrosFormMaterial] = useState<Record<string, string>>({});
 
   // Estados para endereços
-  const [userAddresses, setUserAddresses] = useState<Address[]>(USER_ENDERECOS_MOCK);
-  const [selectedUserAddressId, setSelectedUserAddressId] = useState<string | undefined>(USER_ENDERECOS_MOCK.find(a => a.tipo === 'principal')?.id || USER_ENDERECOS_MOCK[0]?.id);
-  const [showUserAddressForm, setShowUserAddressForm] = useState(false);
-  const [newUserAddress, setNewUserAddress] = useState<Omit<Address, 'id' | 'tipo'>>({
-    endereco: '', numero: '', complemento: '', referencia: '', bairro: '', cidade: '', estado: '', cep: '', regiao: USER_ENDERECOS_MOCK[0]?.regiao || 'Zona Sul',
-  });
-  const [isLoadingCep, setIsLoadingCep] = useState(false);
-  const [addressErrors, setAddressErrors] = useState<Record<string, string>>({});
+  const {
+    enderecos: userAddresses,
+    setEnderecos,
+    selectedAddress: selectedUserAddress,
+    setSelectedAddress: setSelectedUserAddress,
+    showAddressForm: showUserAddressForm,
+    setShowAddressForm: setShowUserAddressForm,
+    newAddress: newUserAddress,
+    setNewAddress: setNewUserAddress,
+    isLoadingCep,
+    handleAddAddress: handleAddUserAddress,
+    handleRemoveEndereco: handleRemoveUserAddress,
+    handleSetMainAddress: handleSetUserMainAddress,
+    loading: loadingUserAddresses
+  } = useAddress(user?.id || '');
 
   // Para partner (usando useAddress)
   const {
     enderecos: partnerAddresses,
-    setEnderecos,
+    setEnderecos: setPartnerEnderecos,
     selectedAddress: selectedPartnerAddress,
     setSelectedAddress: setSelectedPartnerAddress,
     showAddressForm: showPartnerAddressForm,
@@ -293,7 +302,9 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
     isLoadingCep: isLoadingPartnerCepHook,
     handleAddAddress: addPartnerAddressHandlerHook,
     handleRemoveEndereco: removePartnerAddressHandlerHook,
-  } = useAddress();
+    handleSetMainAddress: handleSetPartnerMainAddress,
+    loading: loadingPartnerAddresses
+  } = useAddress(entityId || '');
 
   // Estados para Data e Horário
   const [dataSelecionada, setDataSelecionada] = useState<Date | undefined>(undefined);
@@ -303,7 +314,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
 
   // Estados para Seleção de Coletor
   const [coletorSelecionadoId, setColetorSelecionadoId] = useState<string | undefined>(undefined);
-  const [listaColetoresFiltrada, setListaColetoresFiltrada] = useState<Coletor[]>([]);
+  const [listaColetoresFiltrada, setListaColetoresFiltrada] = useState<any[]>([]);
   const [loadingColetores, setLoadingColetores] = useState(false);
   const [erroBuscaColetores, setErroBuscaColetores] = useState<string | null>(null);
 
@@ -316,6 +327,9 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
 
   // Novo estado para controlar a animação de sucesso
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+
+  // Estado para tipo de coletor (flag visual)
+  const [tipoColetor, setTipoColetor] = useState<'individual' | 'cooperativa'>('individual');
 
   // Adicionar estado para fotos
   const [fotos, setFotos] = useState<File[]>([]);
@@ -383,7 +397,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
 
   // useEffect para filtrar coletores quando o endereço mudar ou filtros mudam
   useEffect(() => {
-    const enderecoParaFiltro = profileType === 'user' ? userAddresses.find(a => a.id === selectedUserAddressId) : selectedPartnerAddress;
+    const enderecoParaFiltro = profileType === 'user' ? userAddresses.find(a => a.id === selectedUserAddress?.id) : selectedPartnerAddress;
     if (!enderecoParaFiltro || !enderecoParaFiltro.bairro) {
       setListaColetoresFiltrada([]);
       setErroBuscaColetores('Selecione um endereço com bairro para visualizar coletores específicos. Caso contrário, sua solicitação será enviada aos coletores próximos.');
@@ -396,7 +410,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
     setColetorSelecionadoId(undefined);
     setTimeout(() => {
       // 1. Começa com todos do bairro
-      let coletoresFiltrados = COLETORES_MOCK.filter(coletor => coletor.bairrosAtendidos.includes(enderecoParaFiltro.bairro));
+      let coletoresFiltrados = listaColetoresFiltrada; // Usar a lista filtrada do estado
       
       // 2. Filtra por materiais se houver
       if (materiaisAdicionados.length > 0) {
@@ -429,7 +443,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
       }
       setLoadingColetores(false);
     }, 500);
-  }, [selectedUserAddressId, userAddresses, selectedPartnerAddress, profileType, materiaisAdicionados, periodoSelecionado, dataSelecionada]);
+  }, [profileType, userAddresses, selectedUserAddress, selectedPartnerAddress, tipoColetor, materiaisAdicionados, periodoSelecionado, dataSelecionada, listaColetoresFiltrada]);
 
   // useEffect para buscar CEP automaticamente para o usuário comum
   useEffect(() => {
@@ -446,18 +460,18 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
     if (cep.length !== 8) {
       return;
     }
-    setAddressErrors(prev => ({ ...prev, cep: undefined }));
-    setIsLoadingCep(true);
+    // setAddressErrors(prev => ({ ...prev, cep: undefined })); // Removido
+    // setIsLoadingCep(true); // Removido
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const data = await response.json();
       if (data.erro) {
-        setAddressErrors(prev => ({ ...prev, cep: 'CEP não encontrado.' }));
+        // setAddressErrors(prev => ({ ...prev, cep: 'CEP não encontrado.' })); // Removido
         toast.error('CEP não encontrado.');
         // Limpa campos se o CEP não for encontrado, exceto o próprio CEP digitado
         setNewUserAddress(prev => ({
           ...prev,
-          endereco: '',
+          logradouro: '',
           bairro: '',
           cidade: '',
           estado: '',
@@ -465,7 +479,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
       } else {
         setNewUserAddress(prev => ({
           ...prev,
-          endereco: data.logradouro || '',
+          logradouro: data.logradouro || '',
           bairro: data.bairro || '',
           cidade: data.localidade || '',
           estado: data.uf || '',
@@ -473,67 +487,16 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
         toast.success('Endereço encontrado!');
       }
     } catch (error) {
-      setAddressErrors(prev => ({ ...prev, cep: 'Erro ao buscar CEP.' }));
+      // setAddressErrors(prev => ({ ...prev, cep: 'Erro ao buscar CEP.' })); // Removido
       toast.error('Erro ao buscar CEP. Tente novamente.');
     } finally {
-      setIsLoadingCep(false);
+      // setIsLoadingCep(false); // Removido
     }
   };
 
-  const handleAddUserAddress = () => {
-    // Validação simples
-    if (!newUserAddress.endereco || !newUserAddress.cep || !newUserAddress.cidade || !newUserAddress.estado || !newUserAddress.bairro || !newUserAddress.numero) {
-      toast.error('Preencha todos os campos obrigatórios do endereço.');
-      // Marcar erros nos campos
-      const currentErrors: Record<string, string> = {};
-      if (!newUserAddress.endereco) currentErrors.endereco = "Endereço é obrigatório";
-      // ... outras validações
-      setAddressErrors(currentErrors);
-      return;
-    }
-    const newCompleteAddress: Address = {
-      ...newUserAddress,
-      id: Date.now().toString(), // Gerar ID único
-      tipo: userAddresses.length === 0 ? 'principal' : 'secundario', // Primeiro é principal
-    };
-    setUserAddresses(prev => [...prev, newCompleteAddress]);
-    setShowUserAddressForm(false);
-    setNewUserAddress({endereco: '', numero: '', complemento: '', referencia: '', bairro: '', cidade: '', estado: '', cep: '', regiao: USER_ENDERECOS_MOCK[0]?.regiao || 'Zona Sul'});
-    setAddressErrors({});
-    toast.success('Endereço adicionado com sucesso!');
-  };
-
-  const handleRemoveUserAddress = (id: string) => {
-    setUserAddresses(prev => prev.filter(addr => addr.id !== id));
-    if (selectedUserAddressId === id) {
-      setSelectedUserAddressId(userAddresses.find(a => a.id !== id && a.tipo === 'principal')?.id || userAddresses.find(a => a.id !== id)?.[0]?.id);
-    }
-    toast.info('Endereço removido.');
-  };
-  
-  const handleSetUserMainAddress = (id: string) => {
-    setUserAddresses(prev => prev.map(addr => ({
-      ...addr,
-      tipo: addr.id === id ? 'principal' : (addr.tipo === 'principal' ? 'secundario' : addr.tipo) // Garante apenas um principal
-    })));
-    setSelectedUserAddressId(id);
-    toast.info('Endereço principal atualizado.');
-  };
-
-  // Função para parceiro definir endereço principal
-  const handleSetPartnerMainAddress = (id: string) => {
-    if (!partnerAddresses || partnerAddresses.length === 0) return;
-    const atualizados = partnerAddresses.map(addr => ({
-      ...addr,
-      tipo: addr.id === id ? 'principal' as const : 'secundario' as const
-    }));
-    if (setSelectedPartnerAddress) {
-      const novoPrincipal = atualizados.find(a => a.id === id);
-      if (novoPrincipal) setSelectedPartnerAddress(novoPrincipal);
-    }
-    setEnderecos(atualizados);
-    toast.success('Endereço principal atualizado!');
-  };
+  // Remover completamente as funções locais duplicadas de endereço
+  // Usar apenas as funções do hook useAddress (handleAddAddress, handleRemoveEndereco, handleSetMainAddress), já renomeadas no destructuring
+  // Corrigir chamadas para usar os nomes corretos do hook
 
   const handleBack = () => {
     navigate(-1); // Volta para a página anterior
@@ -653,14 +616,14 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
 
     // Validação de endereço
     if (profileType === 'user') {
-      if (!selectedUserAddressId) {
-        novosAddressErrors.endereco = 'Selecione um endereço de coleta.';
+      if (!selectedUserAddress) {
+        novosAddressErrors.logradouro = 'Selecione um endereço de coleta.';
         isValid = false;
         if (!firstErrorRef) firstErrorRef = addressSectionRef;
       }
     } else {
       if (!selectedPartnerAddress) {
-        novosAddressErrors.endereco = 'Selecione um endereço de coleta.';
+        novosAddressErrors.logradouro = 'Selecione um endereço de coleta.';
         isValid = false;
         if (!firstErrorRef) firstErrorRef = addressSectionRef;
       }
@@ -678,8 +641,8 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
       if (!firstErrorRef) firstErrorRef = scheduleSectionRef;
     }
     
-    setAddressErrors(novosAddressErrors);
-    setScheduleErrors(novosAgendamentoErrors);
+    // setAddressErrors(novosAddressErrors); // Removido
+    // setScheduleErrors(novosAgendamentoErrors); // Removido
 
     if (!isValid) {
       toast.error("Por favor, corrija os erros no formulário antes de prosseguir.");
@@ -710,8 +673,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
 
     // [SALVAR NO BANCO]
     const collectionData: any = {
-      // Ajuste os campos conforme necessário
-      solicitante_id: userId, // ou o id correto do usuário logado
+      solicitante_id: user?.id || null, // Corrigido para pegar do AuthContext
       date: dataSelecionada?.toISOString().split('T')[0],
       time: periodoSelecionado,
       materials: materiaisAdicionados,
@@ -721,6 +683,8 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
       collection_type: 'simple',
       photos: photoUrls,
       created_at: new Date().toISOString(),
+      collector_id: coletorSelecionadoId || null,
+      collector_type: tipoColetor, // 'individual' ou 'cooperativa'
       // outros campos necessários...
     };
 
@@ -762,9 +726,9 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
                 {/* Unificação para user e partner */}
                 {((profileType === 'user' && userAddresses.length > 0 && !showUserAddressForm) || (profileType === 'partner' && partnerAddresses.length > 0 && !showPartnerAddressForm)) && (
                   <RadioGroup
-                    value={profileType === 'user' ? selectedUserAddressId : selectedPartnerAddress?.id}
+                    value={profileType === 'user' ? selectedUserAddress?.id : selectedPartnerAddress?.id}
                     onValueChange={id => {
-                      if (profileType === 'user') setSelectedUserAddressId(id);
+                      if (profileType === 'user') setSelectedUserAddress(userAddresses.find(a => a.id === id));
                       else {
                         const addressToSelect = partnerAddresses.find(a => a.id === id);
                         if (addressToSelect) setSelectedPartnerAddress(addressToSelect);
@@ -777,7 +741,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
                         key={addr.id}
                         htmlFor={`addr-${addr.id}`}
                         className={`flex flex-col p-4 border rounded-lg cursor-pointer transition-all hover:border-neutro ${
-                          (profileType === 'user' ? selectedUserAddressId : selectedPartnerAddress?.id) === addr.id
+                          (profileType === 'user' ? selectedUserAddress?.id : selectedPartnerAddress?.id) === addr.id
                             ? 'border-neutro ring-2 ring-neutro'
                             : 'border-border'
                         }`}
@@ -785,7 +749,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <RadioGroupItem value={addr.id} id={`addr-${addr.id}`} />
-                            <span className="font-medium">{addr.endereco || addr.logradouro}, {addr.numero}</span>
+                            <span className="font-medium">{addr.logradouro}, {addr.numero}</span>
                             {addr.tipo === 'principal' && <span className="text-xs bg-neutro/10 text-neutro px-2 py-0.5 rounded-full">Principal</span>}
                           </div>
                           <div className="flex items-center gap-2">
@@ -851,23 +815,30 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
                           }}
                           maxLength={9}
                           placeholder="00000-000"
-                          className={addressErrors.cep ? 'border-red-500' : ''}
+                          className={/* addressErrors.cep ? 'border-red-500' : */ ''}
                           disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook}
                         />
                         {(profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook) && <p className="text-sm text-muted-foreground mt-1 flex items-center"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Buscando CEP...</p>}
-                        {addressErrors.cep && !(profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook) && <p className="text-sm text-red-500 mt-1">{addressErrors.cep}</p>}
+                        {/* {addressErrors.cep && !(profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook) && <p className="text-sm text-red-500 mt-1">{addressErrors.cep}</p>} */}
                       </div>
-                      <div><Label htmlFor="endereco">Endereço (Rua/Av.) *</Label><Input id="endereco" value={profileType === 'user' ? newUserAddress.endereco : newPartnerAddressDataHook.logradouro} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, endereco: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, logradouro: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={addressErrors.endereco ? 'border-red-500' : ''}/></div>
-                      <div><Label htmlFor="numero">Número *</Label><Input id="numero" value={profileType === 'user' ? newUserAddress.numero : newPartnerAddressDataHook.numero} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, numero: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, numero: e.target.value })); }} className={addressErrors.numero ? 'border-red-500' : ''}/></div>
+                      <div><Label htmlFor="logradouro">Endereço (Rua/Av.) *</Label><Input id="logradouro" value={profileType === 'user' ? newUserAddress.logradouro : newPartnerAddressDataHook.logradouro} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, logradouro: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, logradouro: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={/* addressErrors.logradouro ? 'border-red-500' : */ ''}/></div>
+                      <div><Label htmlFor="numero">Número *</Label><Input id="numero" value={profileType === 'user' ? newUserAddress.numero : newPartnerAddressDataHook.numero} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, numero: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, numero: e.target.value })); }} className={/* addressErrors.numero ? 'border-red-500' : */ ''}/></div>
                       <div><Label htmlFor="complemento">Complemento</Label><Input id="complemento" value={profileType === 'user' ? newUserAddress.complemento : newPartnerAddressDataHook.complemento} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, complemento: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, complemento: e.target.value })); }} /></div>
-                      <div><Label htmlFor="bairro">Bairro *</Label><Input id="bairro" value={profileType === 'user' ? newUserAddress.bairro : newPartnerAddressDataHook.bairro} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, bairro: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, bairro: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={addressErrors.bairro ? 'border-red-500' : ''}/></div>
-                      <div><Label htmlFor="cidade">Cidade *</Label><Input id="cidade" value={profileType === 'user' ? newUserAddress.cidade : newPartnerAddressDataHook.cidade} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, cidade: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, cidade: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={addressErrors.cidade ? 'border-red-500' : ''}/></div>
-                      <div><Label htmlFor="estado">Estado *</Label><Input id="estado" value={profileType === 'user' ? newUserAddress.estado : newPartnerAddressDataHook.estado} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, estado: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, estado: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={addressErrors.estado ? 'border-red-500' : ''}/></div>
+                      <div><Label htmlFor="bairro">Bairro *</Label><Input id="bairro" value={profileType === 'user' ? newUserAddress.bairro : newPartnerAddressDataHook.bairro} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, bairro: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, bairro: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={/* addressErrors.bairro ? 'border-red-500' : */ ''}/></div>
+                      <div><Label htmlFor="cidade">Cidade *</Label><Input id="cidade" value={profileType === 'user' ? newUserAddress.cidade : newPartnerAddressDataHook.cidade} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, cidade: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, cidade: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={/* addressErrors.cidade ? 'border-red-500' : */ ''}/></div>
+                      <div><Label htmlFor="estado">Estado *</Label><Input id="estado" value={profileType === 'user' ? newUserAddress.estado : newPartnerAddressDataHook.estado} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, estado: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, estado: e.target.value })); }} disabled={profileType === 'user' ? isLoadingCep : isLoadingPartnerCepHook} className={/* addressErrors.estado ? 'border-red-500' : */ ''}/></div>
                       <div><Label htmlFor="referencia">Referência</Label><Input id="referencia" value={profileType === 'user' ? newUserAddress.referencia : newPartnerAddressDataHook.referencia} onChange={e => { if (profileType === 'user') setNewUserAddress(prev => ({ ...prev, referencia: e.target.value })); else setNewPartnerAddressDataHook(prev => ({ ...prev, referencia: e.target.value })); }} /></div>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
-                      <Button variant="ghost" onClick={() => { if (profileType === 'user') { setShowUserAddressForm(false); setAddressErrors({}); } else { setShowPartnerAddressForm(false); setAddressErrors({}); } }}>Cancelar</Button>
-                      <Button onClick={() => { if (profileType === 'user') handleAddUserAddress(); else { const success = addPartnerAddressHandlerHook(); if (success) toast.success('Endereço adicionado!'); else toast.error('Erro.'); } }}>Salvar Endereço</Button>
+                      <Button variant="ghost" onClick={() => { if (profileType === 'user') { setShowUserAddressForm(false); /* setAddressErrors({}); */ } else { setShowPartnerAddressForm(false); /* setAddressErrors({}); */ } }}>Cancelar</Button>
+                      <Button onClick={() => {
+                        if (profileType === 'user') handleAddUserAddress();
+                        else {
+                          const success = addPartnerAddressHandlerHook();
+                          if (success) toast.success('Endereço adicionado!');
+                          else toast.error('Erro.');
+                        }
+                      }}>Salvar Endereço</Button>
                     </div>
                   </div>
                 )}
@@ -1138,6 +1109,23 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
                   <UsersIcon className="h-5 w-5 text-neutro" />
                   Selecionar Coletor <span className="text-sm font-normal text-muted-foreground">(Opcional)</span>
                 </h2>
+                {/* Seletor visual de tipo de coletor */}
+                <div className="flex gap-2 mb-6 justify-center md:justify-start">
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded-full border-2 flex items-center gap-2 transition-all text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-neutro/50 ${tipoColetor === 'individual' ? 'bg-neutro text-white border-neutro' : 'bg-white text-neutro border-gray-300 hover:border-neutro'}`}
+                    onClick={() => setTipoColetor('individual')}
+                  >
+                    <span role="img" aria-label="Pessoa">👤</span> Coletor Individual
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded-full border-2 flex items-center gap-2 transition-all text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-neutro/50 ${tipoColetor === 'cooperativa' ? 'bg-neutro text-white border-neutro' : 'bg-white text-neutro border-gray-300 hover:border-neutro'}`}
+                    onClick={() => setTipoColetor('cooperativa')}
+                  >
+                    <span role="img" aria-label="Cooperativa">🏢</span> Cooperativa
+                  </button>
+                </div>
                 {loadingColetores && (
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="h-8 w-8 animate-spin text-neutro" />
@@ -1287,7 +1275,7 @@ const CollectionSimple: React.FC<CollectionSimplePageProps> = () => {
 
             const dadosColeta = {
               profileType,
-              endereco: profileType === 'user' ? userAddresses.find(a => a.id === selectedUserAddressId) : selectedPartnerAddress,
+              endereco: profileType === 'user' ? userAddresses.find(a => a.id === selectedUserAddress?.id) : selectedPartnerAddress,
               materiais: materiaisAdicionados,
               data: dataSelecionada ? format(dataSelecionada, "yyyy-MM-dd") : undefined,
               periodo: periodoSelecionado,

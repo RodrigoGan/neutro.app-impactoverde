@@ -275,7 +275,7 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
               <Button
                 variant="outline"
                 className="w-full h-[48px] text-sm"
-                onClick={() => handleNavigate("/cooperative-financial-report")}
+                onClick={() => handleNavigate("/financial-overview", { perfil: 'cooperativa' })}
               >
                 <DollarSign className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Financeiro</span>
@@ -283,7 +283,7 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
               <Button
                 variant="outline"
                 className="w-full h-[48px] text-sm"
-                onClick={() => handleNavigate("/cooperative-settings")}
+                onClick={() => handleNavigate("/cooperative-settings", { userId: user?.id })}
               >
                 <Settings className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="whitespace-nowrap">Configurações</span>

@@ -53,11 +53,15 @@ export function useActiveSchedules({
     if (userType === 'common_user' && userId) {
       query = query.eq('solicitante_id', userId);
     } else if (userType === 'individual_collector' && userId) {
-      query = query.eq('collector_id', userId);
+      query = query.eq('collector_id', userId).eq('collector_type', 'individual');
     } else if (
-      ['cooperative', 'cooperative_owner', 'collector_company_owner', 'restaurant_partner', 'store_partner', 'educational_partner', 'partner_owner'].includes(userType) && entityId
+      ['cooperative', 'cooperative_owner'].includes(userType) && entityId
     ) {
-      query = query.eq('entity_id', entityId);
+      query = query.eq('collector_id', entityId).eq('collector_type', 'cooperative');
+    } else if (
+      ['collector_company_owner', 'restaurant_partner', 'store_partner', 'educational_partner', 'partner_owner'].includes(userType) && entityId
+    ) {
+      query = query.eq('entity_id', entityId); // manter para outros perfis se necessário
     }
 
     // Filtro para agendamentos ativos (pending, scheduled)
@@ -78,7 +82,11 @@ export function useActiveSchedules({
 
     const { data, error, count } = await query;
     if (error) {
-      setError('Erro ao buscar agendamentos ativos');
+      // Se for erro 400, transformar em string '400' para friendly state
+      const errorMsg = error.code === '400' || (typeof error.message === 'string' && error.message.includes('400'))
+        ? '400'
+        : (error.message || error.toString() || 'Erro ao buscar agendamentos ativos');
+      setError(errorMsg);
       setSchedules([]);
       setTotal(0);
     } else {

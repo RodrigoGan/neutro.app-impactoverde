@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
+import AppFooter from '@/components/AppFooter';
 
 // Remover interfaces Transaction, TransactionParty, MaterialEntry, TransactionStatus
 // No SaleReceiptCard, usar apenas os campos reais: sale.collector_id, sale.materials, sale.status, sale.date, sale.created_at, etc.
@@ -82,7 +83,11 @@ const ReceiptHistory: React.FC = () => {
             <h1 className="text-2xl font-bold">Histórico de Recibos de Vendas</h1>
           </div>
           <div className="text-center text-muted-foreground py-12">
-            Nenhuma compra registrada ainda.
+            Nenhuma venda registrada ainda.
+          </div>
+          {/* Rodapé padrão com espaçamento */}
+          <div className="mt-8">
+            <AppFooter />
           </div>
         </div>
       </div>
@@ -190,6 +195,10 @@ const ReceiptHistory: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+        {/* Rodapé padrão com espaçamento */}
+        <div className="mt-8">
+          <AppFooter />
         </div>
       </div>
     </div>

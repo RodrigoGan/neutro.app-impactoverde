@@ -176,7 +176,7 @@ const CooperativeSettings: React.FC = () => {
   }
   
   // Hook para buscar dados reais do usuário
-  const { profile: user, loading, error: profileError } = useUserProfile(userId);
+  const { userData: user, loading, error: profileError } = useUserProfile(userId);
 
   // Buscar materiais do banco de dados
   useEffect(() => {
