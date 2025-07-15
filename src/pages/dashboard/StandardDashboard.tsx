@@ -16,7 +16,6 @@ import { useNavigate } from 'react-router-dom';
 import StandardNotificationCard from '@/components/dashboard/standard/StandardNotificationCard';
 import StandardTeamManagementCard from '@/components/dashboard/standard/StandardTeamManagementCard';
 import StandardCommunityCard from '@/components/dashboard/StandardCommunityCard';
-import StandardCollectorWeeklyGoalsCard from '@/components/dashboard/StandardCollectorWeeklyGoalsCard';
 import StandardCooperativeUpcomingActionsCard from '@/components/dashboard/StandardCooperativeUpcomingActionsCard';
 import ValidateCouponModal from '@/components/coupons/ValidateCouponModal';
 import { QrCode, Ticket } from 'lucide-react';
@@ -90,13 +89,7 @@ const mockUsers = [
     isActive: true,
     isAvailable: true,
     isBlocked: false,
-    status: 'Ativo',
-    stats: [
-      { icon: 'Package', value: '2.5t', label: 'Total Coletado' },
-      { icon: 'Star', value: '4.8', label: 'Avaliação' },
-      { icon: 'Calendar', value: '01/03/22', label: 'Na plataforma' },
-      { icon: 'Building2', value: 'Recicla Mais', label: 'Empresa Vinculada' }
-    ]
+    status: 'Ativo'
   },
   {
     id: 'c8f2d3e4-5a6b-7890-1bcd-ef2345678901',
@@ -111,12 +104,10 @@ const mockUsers = [
       coverageAreas: ['Zona Norte', 'Zona Leste', 'Zona Oeste'],
       activeSince: '2021-11-20'
     },
-    stats: [
-      { icon: 'Package', value: '1.8t', label: 'Total Coletado' },
-      { icon: 'Star', value: '4.9', label: 'Avaliação' },
-      { icon: 'Calendar', value: '20/11/21', label: 'Na plataforma' },
-      { icon: 'MapPin', value: 'Zona Norte', label: 'Área de Atuação' }
-    ]
+    isActive: true,
+    isAvailable: true,
+    isBlocked: false,
+    status: 'Ativo'
   },
   {
     id: 'd9f3e4a5-6b7c-8901-2cde-f34567890123',
@@ -204,12 +195,10 @@ const StandardDashboard: React.FC = () => {
   // Estado para controlar o usuário selecionado
   const { user: authUser, loading: authLoading, setUser } = useAuth();
   const initialUserId = React.useMemo(() => {
-    if (authUser) {
-      const match = mockUsers.find(u => u.userType === authUser.user_type);
-      return match ? match.id : mockUsers[0].id;
-    }
-    return mockUsers[0].id;
-  }, [authUser]);
+    // Sempre força o usuário comum como padrão, independente do authUser
+    const commonUser = mockUsers.find(u => u.userType === 'common_user');
+    return commonUser ? commonUser.id : mockUsers[0].id;
+  }, []);
   const [selectedUserId, setSelectedUserId] = useState<string>(initialUserId);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [linkedEntity, setLinkedEntity] = useState<any>(null);
@@ -258,6 +247,14 @@ const StandardDashboard: React.FC = () => {
       setSelectedUserId(navState.userId);
     }
   }, [window.history.state]);
+
+  // Resetar para o usuário comum sempre que não houver usuário autenticado
+  useEffect(() => {
+    if (!authUser) {
+      const commonUser = mockUsers.find(u => u.userType === 'common_user');
+      setSelectedUserId(commonUser ? commonUser.id : mockUsers[0].id);
+    }
+  }, [authUser]);
 
   // Efeito separado para atualizar o usuário e entidade vinculada
   useEffect(() => {
@@ -546,6 +543,21 @@ const StandardDashboard: React.FC = () => {
     return <div className="container mx-auto px-4 py-8 text-center">Carregando usuário...</div>;
   }
 
+  if (!selectedUser) {
+    return <div className="p-8 text-center text-red-500">Nenhum usuário de teste selecionado. Tente recarregar a página ou selecione um perfil.</div>;
+  }
+
+  // Adicionar mapeamento de nível correto
+  const levelMap = {
+    1: 'Bronze',
+    2: 'Prata',
+    3: 'Ouro'
+  };
+  const levelLabel = progressData?.current_level
+    ? levelMap[progressData.current_level] || String(progressData.current_level)
+    : selectedUser?.level?.label || 'Bronze';
+  const levelColor = selectedUser?.level?.color;
+
   return (
     <div className="container mx-auto p-4 space-y-6">
       {/* Seletor de Usuário */}
@@ -575,18 +587,34 @@ const StandardDashboard: React.FC = () => {
       {/* Card de Perfil */}
       {selectedUser && (
         <>
-          <StandardDashboardHeader
-            user={{
-              ...selectedUser,
-              level: { label: progressData?.current_level || selectedUser.level?.label || 'Bronze', color: selectedUser.level?.color }
-            }}
-            entity={selectedUser.userType === 'individual_collector' && selectedUser.companyAffiliation?.company ? selectedUser.companyAffiliation.company : linkedEntity || undefined}
-            role={getUserRole(selectedUser)}
-            plan={getUserPlan(selectedUser)}
-            isVerified={linkedEntity?.isVerified || false}
-            userId={selectedUserId}
-            stats={selectedUser.userType === 'common_user' ? selectedUser.stats : undefined}
-          />
+          {/* stats só para usuário comum */}
+          {selectedUser.userType === 'common_user' && (
+            <StandardDashboardHeader
+              user={{
+                ...selectedUser,
+                level: { label: levelLabel, color: levelColor }
+              }}
+              entity={linkedEntity || undefined}
+              role={getUserRole(selectedUser)}
+              plan={getUserPlan(selectedUser)}
+              isVerified={linkedEntity?.isVerified || false}
+              userId={selectedUserId}
+              stats={selectedUser.stats}
+            />
+          )}
+          {selectedUser.userType !== 'common_user' && (
+            <StandardDashboardHeader
+              user={{
+                ...selectedUser,
+                level: { label: progressData?.current_level || selectedUser.level?.label || 'Bronze', color: selectedUser.level?.color }
+              }}
+              entity={selectedUser.userType === 'individual_collector' && selectedUser.companyAffiliation?.company ? selectedUser.companyAffiliation.company : linkedEntity || undefined}
+              role={getUserRole(selectedUser)}
+              plan={getUserPlan(selectedUser)}
+              isVerified={linkedEntity?.isVerified || false}
+              userId={selectedUserId}
+            />
+          )}
 
           {/* Ações Rápidas - Sempre presente */}
           <StandardQuickActionCard 
@@ -618,7 +646,7 @@ const StandardDashboard: React.FC = () => {
           {/* Cupons - Para usuário comum e outros perfis específicos */}
           {(['common_user', 'cooperative_owner', 'collector_company_owner', 'partner_owner', 'individual_collector'].includes(selectedUser.userType)) && (
             <StandardCouponsCard 
-              userLevel={{ label: progressData?.current_level || 'Bronze', color: selectedUser.level?.color }}
+              userLevel={{ label: levelLabel, color: levelColor }}
               monthlyLimit={getCouponsData(selectedUser.userType, selectedUser).monthlyLimit}
               availableCoupons={getCouponsData(selectedUser.userType, selectedUser).availableCoupons}
               activeCoupons={getCouponsData(selectedUser.userType, selectedUser).activeCoupons}

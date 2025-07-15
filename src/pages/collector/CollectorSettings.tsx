@@ -31,12 +31,13 @@ import {
   TrashIcon,
   Leaf,
   Battery,
-  Lightbulb
+  Lightbulb,
+  ChevronLeft
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from "@/lib/utils";
 import { TRANSPORT_TYPES } from '@/constants/transportTypes';
@@ -49,6 +50,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { materialDisplayData } from '@/config/materialDisplayData';
 import { getMaterialIdentificador } from '@/lib/utils';
 import { getAllMaterials } from '@/lib/collectorService';
+import LogoutButton from '@/components/ui/LogoutButton';
 
 // Dados mockados - substituir por dados reais da API
 const MATERIAIS_DISPONIVEIS = [
@@ -216,11 +218,40 @@ const CollectorSettings: React.FC = () => {
   const [materiaisDb, setMateriaisDb] = useState<any[]>([]);
   const [materiaisLoading, setMateriaisLoading] = useState(false);
   const { user } = useAuth();
+  const userId = user?.id;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Estados para horários do coletor
   const [horarios, setHorarios] = useState<any[]>([]);
   const [intervalo, setIntervalo] = useState(30);
   const [maxColetas, setMaxColetas] = useState(10);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleOpenDeleteModal = () => {
+    setShowDeleteModal(true);
+    setDeletePassword('');
+    setDeleteConfirm('');
+    setDeleteError('');
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletePassword) {
+      setDeleteError('Digite sua senha.');
+      return;
+    }
+    if (deleteConfirm !== 'EXCLUIR') {
+      setDeleteError('Digite EXCLUIR para confirmar.');
+      return;
+    }
+    setDeleteError('');
+    // Aqui você implementaria a exclusão real
+    setShowDeleteModal(false);
+    toast({ title: 'Conta excluída (simulação)', description: 'Aqui você faria a exclusão real.' });
+  };
 
   const tabs = [
     { id: 'perfil', label: 'Perfil', icon: <User className="h-4 w-4" /> },
@@ -238,71 +269,63 @@ const CollectorSettings: React.FC = () => {
 
   // Buscar dados reais do banco ao carregar
   useEffect(() => {
-    if (!user?.id) return;
-    // Buscar perfil
-    getCollectorProfile(user.id).then((profile) => {
-      if (profile) {
-        setFormData((prev) => ({
-          ...prev,
-          nome: profile.name || '',
-          telefone: profile.phone || '',
-          cpf: profile.document || ''
-        }));
+    if (!userId) return;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      getCollectorProfile(userId),
+      getCollectorAddress(userId),
+      getCollectorMaterials(userId),
+      getCollectorVehicle(userId),
+      getCollectorNeighborhoods(userId)
+    ]).then(([profile, address, materials, vehicle, neighborhoods]) => {
+      if (!profile || !address || !materials || !neighborhoods) {
+        setError('Nenhum dado encontrado para este coletor. Complete o cadastro ou entre em contato com o suporte.');
+        setLoading(false);
+        return;
       }
+      setFormData({
+        nome: profile.name || '',
+        email: profile.email || '',
+        telefone: profile.phone || '',
+        cpf: profile.document || '',
+        endereco: {
+          cep: address?.zip_code || '',
+          rua: address?.street || '',
+          numero: address?.number || '',
+          complemento: address?.complement || '',
+          bairro: address?.neighborhood || '',
+          cidade: address?.city || '',
+          estado: address?.state || ''
+        },
+        veiculo: {
+          tipo: vehicle?.type || '',
+          outroTipo: vehicle?.description || ''
+        },
+        seguranca: {
+          senhaAtual: '',
+          novaSenha: '',
+          confirmarSenha: ''
+        },
+        regioes: {
+          raioMaximo: 10, // ajuste se houver campo real
+          bairroBase: address?.neighborhood || '',
+          bairrosPreferenciais: neighborhoods || []
+        }
+      });
+      setMateriaisAceitos(Array.isArray(materials) ? materials.map((m: any) => m.material_id) : []);
+      setBairrosSugeridos(neighborhoods || []);
+      setLoading(false);
+    }).catch((err) => {
+      setError('Erro ao carregar dados do coletor.');
+      setLoading(false);
     });
-    // Buscar endereço principal
-    getCollectorAddress(user.id).then((address) => {
-      if (address) {
-        setFormData((prev) => ({
-          ...prev,
-          endereco: {
-            cep: address.zip_code || '',
-            rua: address.street || '',
-            numero: address.number || '',
-            complemento: address.complement || '',
-            bairro: address.neighborhood || '',
-            cidade: address.city || '',
-            estado: address.state || ''
-          }
-        }));
-      }
-    });
-    // Buscar bairros de atuação
-    getCollectorNeighborhoods(user.id).then((neighs) => {
-      if (neighs) {
-        setFormData((prev) => ({
-          ...prev,
-          regioes: {
-            ...prev.regioes,
-            bairrosPreferenciais: neighs
-          }
-        }));
-      }
-    });
-    // Buscar materiais aceitos
-    getCollectorMaterials(user.id).then((data) => {
-      if (data && Array.isArray(data)) {
-        setMateriaisAceitos(data.map((m) => m.material_id));
-      }
-    });
-    // Buscar veículo
-    getCollectorVehicle(user.id).then((vehicle) => {
-      if (vehicle) {
-        setFormData((prev) => ({
-          ...prev,
-          veiculo: {
-            tipo: vehicle.type,
-            outroTipo: vehicle.type === 'other' ? vehicle.description : ''
-          }
-        }));
-      }
-    });
-  }, [user?.id]);
+  }, [userId]);
 
   // Buscar horários do banco ao carregar a aba de horários
   useEffect(() => {
-    if (!user?.id || activeTab !== 'horarios') return;
-    getCollectorSchedules(user.id).then((data) => {
+    if (!userId || activeTab !== 'horarios') return;
+    getCollectorSchedules(userId).then((data) => {
       if (data) {
         // Preencher arrays de dias e períodos
         setDiasTrabalho(data.days || []);
@@ -317,7 +340,7 @@ const CollectorSettings: React.FC = () => {
       setIntervalo(30);
       setMaxColetas(5);
     });
-  }, [user?.id, activeTab]);
+  }, [userId, activeTab]);
 
   // Buscar materiais do banco de dados
   useEffect(() => {
@@ -381,15 +404,15 @@ const CollectorSettings: React.FC = () => {
 
   // Salvar alterações de perfil, endereço, bairros, materiais e veículo
   const handleSaveProfile = async () => {
-    if (!user?.id) return;
+    if (!userId) return;
     // Salvar perfil
-    await saveCollectorProfile(user.id, {
+    await saveCollectorProfile(userId, {
       name: formData.nome,
       phone: formData.telefone,
       document: formData.cpf
     });
     // Salvar endereço principal
-    await saveCollectorAddress(user.id, {
+    await saveCollectorAddress(userId, {
       street: formData.endereco.rua,
       number: formData.endereco.numero,
       complement: formData.endereco.complemento,
@@ -400,15 +423,15 @@ const CollectorSettings: React.FC = () => {
       is_main: true
     });
     // Salvar bairros de atuação
-    await saveCollectorNeighborhoods(user.id, formData.regioes.bairrosPreferenciais);
+    await saveCollectorNeighborhoods(userId, formData.regioes.bairrosPreferenciais);
     // Salvar materiais
-    await saveCollectorMaterials(user.id, materiaisAceitos.map((mat) => ({
+    await saveCollectorMaterials(userId, materiaisAceitos.map((mat) => ({
       material_id: mat,
       description: mat === 'Outros' ? '' : undefined // Adapte para pegar descrição se houver campo
     })));
     // Salvar veículo
     await saveCollectorVehicle(
-      user.id,
+      userId,
       formData.veiculo.tipo,
       formData.veiculo.tipo === 'other' ? formData.veiculo.outroTipo : undefined
     );
@@ -594,9 +617,9 @@ const CollectorSettings: React.FC = () => {
 
   // Função para salvar horários
   const handleSaveHorarios = async () => {
-    if (!user?.id) return;
+    if (!userId) return;
     
-    await saveCollectorSchedules(user.id, {
+    await saveCollectorSchedules(userId, {
       days: diasTrabalho,
       periods: periodosDisponiveis,
       max_collections_per_day: maxColetas,
@@ -607,20 +630,25 @@ const CollectorSettings: React.FC = () => {
     setHasUnsavedChanges(false);
   };
 
+  if (loading) {
+    return <div className="p-8 text-center">Carregando dados do coletor...</div>;
+  }
+  if (error) {
+    return <div className="p-8 text-center text-red-500">{error}</div>;
+  }
+
   return (
     <Layout>
       <div className="container mx-auto p-4">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate(-1)} 
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Voltar
-          </Button>
-          <h1 className="text-2xl font-bold">Configurações</h1>
+        <div className="flex items-center gap-4 mb-6 justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-2">
+              <ChevronLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+            <h1 className="text-2xl font-bold">Configurações</h1>
+          </div>
+          <LogoutButton />
         </div>
 
         {/* Mobile Tabs Navigation */}
@@ -1124,6 +1152,57 @@ const CollectorSettings: React.FC = () => {
                         </Button>
                       </div>
                     </div>
+                    <div className="border-t mt-8 pt-8">
+                      <h3 className="text-lg font-semibold text-destructive mb-2">Excluir Conta</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Esta ação é <span className="font-bold text-destructive">irreversível</span>. Todos os seus dados, histórico, cupons e informações pessoais serão apagados permanentemente.
+                        <br />Para confirmar, clique no botão abaixo.
+                      </p>
+                      <Button variant="destructive" onClick={handleOpenDeleteModal}>
+                        Excluir minha conta
+                      </Button>
+                    </div>
+                    <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Excluir Conta</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <p className="text-sm text-destructive font-medium">
+                            Tem certeza que deseja excluir sua conta? Esta ação é irreversível.<br />
+                            Todos os seus dados serão apagados.
+                          </p>
+                          <div>
+                            <Label htmlFor="delete-password">Senha atual</Label>
+                            <Input
+                              id="delete-password"
+                              type="password"
+                              value={deletePassword}
+                              onChange={e => setDeletePassword(e.target.value)}
+                              placeholder="Digite sua senha"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="delete-confirm">Confirmação</Label>
+                            <Input
+                              id="delete-confirm"
+                              value={deleteConfirm}
+                              onChange={e => setDeleteConfirm(e.target.value)}
+                              placeholder="Digite EXCLUIR para confirmar"
+                            />
+                          </div>
+                          {deleteError && <p className="text-destructive text-sm font-medium">{deleteError}</p>}
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+                            Cancelar
+                          </Button>
+                          <Button variant="destructive" onClick={handleConfirmDelete}>
+                            Confirmar exclusão
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 )}
                 {activeTab === 'notificacoes' && (

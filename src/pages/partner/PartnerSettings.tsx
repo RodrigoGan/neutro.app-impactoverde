@@ -25,7 +25,8 @@ import {
   ArrowLeft,
   Utensils,
   ShoppingBag,
-  GraduationCap
+  GraduationCap,
+  ChevronLeft
 } from 'lucide-react';
 import { 
   Dialog,
@@ -51,6 +52,7 @@ import { AttendTypeSwitch } from '@/components/restaurant/AttendTypeSwitch';
 import { StoreSegmentSwitch, SEGMENTS } from '@/components/store/StoreSegmentSwitch';
 import PerfilEducacionalForm from '@/components/profile/PerfilEducacionalForm';
 import { EDUCATION_TYPES } from '@/components/register/educational/EducationTypeSwitch';
+import LogoutButton from '@/components/ui/LogoutButton';
 
 type SettingsSection = 'perfil' | 'endereco' | 'plano' | 'seguranca' | 'notificacoes' | 'perfil-restaurante' | 'perfil-loja' | 'perfil-educacional';
 type PartnerType = 'restaurant' | 'store' | 'educational';
@@ -358,15 +360,50 @@ const PartnerSettings: React.FC = () => {
     );
   }
 
+  // Estados para exclusão de conta
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleOpenDeleteModal = () => {
+    setShowDeleteModal(true);
+    setDeletePassword('');
+    setDeleteConfirm('');
+    setDeleteError('');
+  };
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setDeletePassword('');
+    setDeleteConfirm('');
+    setDeleteError('');
+  };
+  const handleDeleteAccount = () => {
+    if (!deletePassword) {
+      setDeleteError('Digite sua senha.');
+      return;
+    }
+    if (deleteConfirm !== 'EXCLUIR') {
+      setDeleteError('Digite EXCLUIR para confirmar.');
+      return;
+    }
+    setDeleteError('');
+    setShowDeleteModal(false);
+    alert('Conta excluída (simulação).');
+  };
+
   return (
     <Layout>
       <div className="container mx-auto p-4">
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Voltar
-          </Button>
-          <h1 className="text-2xl font-bold">Configurações</h1>
+        <div className="flex items-center gap-4 mb-6 justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-2">
+              <ChevronLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+            <h1 className="text-2xl font-bold">Configurações</h1>
+          </div>
+          <LogoutButton />
         </div>
         <MobileTabs
           tabs={tabs}
@@ -711,6 +748,57 @@ const PartnerSettings: React.FC = () => {
                     <Button variant="default" onClick={handleSaveChanges}>Alterar Senha</Button>
                   </div>
                 </div>
+                {/* Seção de exclusão de conta padronizada */}
+                <div className="border-t mt-8 pt-8">
+                  <h3 className="text-lg font-semibold text-destructive mb-2">Excluir Conta</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Esta ação é <span className="font-bold text-destructive">irreversível</span>. Todos os dados do parceiro, histórico, cupons e configurações serão apagados permanentemente.<br />Para confirmar, clique no botão abaixo.
+                  </p>
+                  <Button variant="destructive" onClick={handleOpenDeleteModal}>
+                    Excluir minha conta
+                  </Button>
+                </div>
+                <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Excluir Conta</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <p className="text-sm text-destructive font-medium">
+                        Tem certeza que deseja excluir sua conta? Esta ação é irreversível.<br />
+                        Todos os dados do parceiro serão apagados.
+                      </p>
+                      <div>
+                        <Label htmlFor="delete-password">Senha atual</Label>
+                        <Input
+                          id="delete-password"
+                          type="password"
+                          value={deletePassword}
+                          onChange={e => setDeletePassword(e.target.value)}
+                          placeholder="Digite sua senha"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="delete-confirm">Confirmação</Label>
+                        <Input
+                          id="delete-confirm"
+                          value={deleteConfirm}
+                          onChange={e => setDeleteConfirm(e.target.value)}
+                          placeholder="Digite EXCLUIR para confirmar"
+                        />
+                      </div>
+                      {deleteError && <p className="text-destructive text-sm font-medium">{deleteError}</p>}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={handleCloseDeleteModal}>
+                        Cancelar
+                      </Button>
+                      <Button variant="destructive" onClick={handleDeleteAccount}>
+                        Confirmar exclusão
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
           </div>

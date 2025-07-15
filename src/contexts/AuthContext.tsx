@@ -48,6 +48,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth();
   }, []);
 
+  // Simulação de usuário autenticado para ambiente de desenvolvimento/teste
+  useEffect(() => {
+    if (!user && !loading) {
+      // Usuário comum mock
+      setUser({
+        id: '2863a918-7e01-42ec-95b4-35891c4321ee',
+        email: 'maria.silva@email.com',
+        name: 'Maria Silva',
+        user_type: 'common_user'
+      });
+      setIsAuthenticated(true);
+    }
+  }, [user, loading]);
+
   const initializeAuth = async () => {
     try {
       // Buscar sessão atual

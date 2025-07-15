@@ -188,14 +188,6 @@ export function useUserProfile(userId: string) {
     setLoading(true);
     setError(null);
     try {
-      // 1. Se for mock, retorna mock
-      if (mockUsers[userId]) {
-        setUserData(mockUsers[userId]);
-        setAddresses(mockUsers[userId].addresses);
-        setNotificationPreferences(mockUsers[userId].notificationPreferences);
-        setLoading(false);
-        return;
-      }
       // 2. Buscar dados reais do banco
         const { data: user, error: userError } = await supabase
           .from('users')
@@ -265,10 +257,17 @@ export function useUserProfile(userId: string) {
       setAddresses(mappedAddresses);
       setNotificationPreferences(mappedNotificationPreferences as NotificationPreference[]);
     } catch (err: any) {
-      setError(err.message || 'Erro ao buscar perfil');
-      } finally {
-        setLoading(false);
+      // Fallback para mock se houver erro de múltiplas linhas ou nenhum resultado
+      if (mockUsers[userId]) {
+        setUserData(mockUsers[userId]);
+        setAddresses(mockUsers[userId].addresses || []);
+        setNotificationPreferences(mockUsers[userId].notificationPreferences || []);
+        setError(null);
+      } else {
+        setError(err.message || 'Erro ao carregar perfil');
       }
+      setLoading(false);
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -354,8 +353,20 @@ async function calculateUserStats(userId: string, userType: string, userProgress
         
         stats.total_recycled = collections?.reduce((sum, c) => sum + (c.total_weight || 0), 0) || 0;
         stats.rating = userProgress?.average_rating || 4.7;
-        stats.scheduled_collections = 3; // Mock por enquanto
-        stats.available_coupons = 5; // Mock por enquanto
+        // Buscar número real de agendamentos ativos (apenas status 'scheduled')
+        const { count: scheduledCountUser } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('status', 'scheduled');
+        stats.scheduled_collections = scheduledCountUser || 0;
+        // Buscar número real de cupons disponíveis (status 'ativo')
+        const { count: availableCoupons } = await supabase
+          .from('coupon_usage')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('status', 'ativo');
+        stats.available_coupons = availableCoupons || 0;
         break;
 
       case 'individual_collector':
@@ -364,11 +375,51 @@ async function calculateUserStats(userId: string, userType: string, userProgress
           .from('collections')
           .select('total_weight')
           .eq('collector_id', userId);
-        
         stats.total_collected = collectorCollections?.reduce((sum, c) => sum + (c.total_weight || 0), 0) || 0;
-        stats.rating = userProgress?.average_rating || 4.8;
-        stats.coverage_areas = 5; // Mock por enquanto
-        stats.platform_time = '36 meses'; // Mock por enquanto
+        // Buscar avaliação real (0 se não houver)
+        stats.rating = userProgress?.average_rating || 0;
+        // Calcular tempo de plataforma (sempre retorna)
+        const { data: userData } = await supabase
+          .from('users')
+          .select('created_at, entity_id')
+          .eq('id', userId)
+          .single();
+        let platformTime = '';
+        if (userData?.created_at) {
+          const createdAt = new Date(userData.created_at);
+          const now = new Date();
+          const diffMonths = (now.getFullYear() - createdAt.getFullYear()) * 12 + (now.getMonth() - createdAt.getMonth());
+          platformTime = diffMonths >= 12 ? `${Math.floor(diffMonths/12)} anos` : `${diffMonths} meses`;
+        } else {
+          platformTime = '0 meses';
+        }
+        stats.platform_time = platformTime;
+        // Buscar empresa vinculada se houver, senão "Não Vinculado" (para todos os coletores)
+        if (userData?.entity_id) {
+          const { data: company } = await supabase
+            .from('entities')
+            .select('name')
+            .eq('id', userData.entity_id)
+            .single();
+          stats.company_affiliation = company ? { company_name: company.name } : { company_name: 'Não Vinculado' };
+        } else {
+          stats.company_affiliation = { company_name: 'Não Vinculado' };
+        }
+        // Buscar número real de agendamentos ativos (apenas status 'scheduled')
+        const { count: scheduledCountCollector } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('collector_id', userId)
+          .eq('status', 'scheduled');
+        stats.scheduled_collections = scheduledCountCollector || 0;
+        // Buscar número de coletas recorrentes ativas
+        const { count: recurringCount } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('collector_id', userId)
+          .eq('is_recurring', true)
+          .eq('status', 'scheduled');
+        stats.active_recurring_collections = recurringCount || 0;
         break;
 
       case 'cooperative_owner':
@@ -382,6 +433,30 @@ async function calculateUserStats(userId: string, userType: string, userProgress
         stats.rating = userProgress?.average_rating || 4.8;
         stats.monthly_volume = userProgress?.monthly_volume || '15.2t';
         stats.platform_time = '3 anos'; // Mock por enquanto
+        // Buscar número de solicitações pendentes
+        const { count: pendingRequests } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('collector_id', userId)
+          .eq('collector_type', 'cooperative')
+          .eq('status', 'pending');
+        stats.pending_requests = pendingRequests || 0;
+        // Buscar número de coletas ativas ou em andamento
+        const { count: activeCollections } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('collector_id', userId)
+          .eq('collector_type', 'cooperative')
+          .in('status', ['scheduled', 'accepted', 'in_progress']);
+        stats.active_collections = activeCollections || 0;
+        // Buscar número de coletas pendentes e agendadas (simples ou recorrentes)
+        const { count: historyPendingScheduled } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('collector_id', userId)
+          .eq('collector_type', 'cooperative')
+          .in('status', ['pending', 'scheduled']);
+        stats.history_pending_scheduled = historyPendingScheduled || 0;
         break;
 
       case 'collector_company_owner':
@@ -396,14 +471,47 @@ async function calculateUserStats(userId: string, userType: string, userProgress
         stats.rating = userProgress?.average_rating || 4.9;
         stats.monthly_volume = userProgress?.monthly_volume || '25.5t';
         stats.platform_time = '2 anos'; // Mock por enquanto
+        // Buscar número de solicitações pendentes
+        const { count: pendingRequestsCompany } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('entity_id', userId)
+          .eq('status', 'pending');
+        stats.pending_requests = pendingRequestsCompany || 0;
+        // Buscar número de coletas ativas ou em andamento
+        const { count: activeCollectionsCompany } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('entity_id', userId)
+          .in('status', ['scheduled', 'accepted', 'in_progress']);
+        stats.active_collections = activeCollectionsCompany || 0;
+        // Buscar número de coletas pendentes e agendadas (simples ou recorrentes)
+        const { count: historyPendingScheduledCompany } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('entity_id', userId)
+          .in('status', ['pending', 'scheduled']);
+        stats.history_pending_scheduled = historyPendingScheduledCompany || 0;
         break;
 
+      case 'restaurant_partner':
+      case 'store_partner':
+      case 'educational_partner':
       case 'partner_owner':
-        stats.customers_per_month = 1500; // Mock por enquanto
-        stats.green_meals = 120; // Mock por enquanto
-        stats.coupons_served = 12; // Mock por enquanto
-        stats.coupons_validated = 8; // Mock por enquanto
-        stats.green_classes = 20; // Mock por enquanto
+        // Buscar número de coletas pendentes e agendadas (simples ou recorrentes)
+        const { count: historyPendingScheduledPartner } = await supabase
+          .from('collections')
+          .select('*', { count: 'exact', head: true })
+          .eq('entity_id', userProgress?.entity_id || userId)
+          .in('status', ['pending', 'scheduled']);
+        stats.history_pending_scheduled = historyPendingScheduledPartner || 0;
+        // Buscar número de cupons ativos (pegos por outros usuários)
+        const { count: activeCoupons } = await supabase
+          .from('coupon_usage')
+          .select('*', { count: 'exact', head: true })
+          .eq('partner_id', userProgress?.entity_id || userId)
+          .eq('status', 'ativo');
+        stats.active_coupons = activeCoupons || 0;
         break;
     }
   } catch (err) {

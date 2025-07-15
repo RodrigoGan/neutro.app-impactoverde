@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import AppFooter from '@/components/AppFooter';
 
 const CooperativeActionsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -225,6 +226,9 @@ const CooperativeActionsPage: React.FC = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      </div>
+      <div className="mt-8">
+        <AppFooter />
       </div>
     </div>
   );

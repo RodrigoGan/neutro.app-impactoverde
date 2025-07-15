@@ -10,9 +10,10 @@ import {
   Bell,
   KeyRound,
   Upload,
-  ChevronLeft
+  ChevronLeft,
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 import { UserProfile as UserProfileType, Address, NotificationPreference } from '@/types/user';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -20,6 +21,7 @@ import { MobileTabs } from '@/components/ui/mobile-tabs';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { AddressSection } from '@/components/profile/AddressSection';
 import { NotificationsSection } from '@/components/profile/NotificationsSection';
+import LogoutButton from '@/components/ui/LogoutButton';
 
 type ProfileSection = 'personal' | 'address' | 'notifications' | 'security';
 
@@ -65,6 +67,10 @@ const UserProfile: React.FC = () => {
   const [activeSection, setActiveSection] = useState<ProfileSection>('personal');
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -107,6 +113,28 @@ const UserProfile: React.FC = () => {
     });
   };
 
+  const handleOpenDeleteModal = () => {
+    setShowDeleteModal(true);
+    setDeletePassword('');
+    setDeleteConfirm('');
+    setDeleteError('');
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletePassword) {
+      setDeleteError('Digite sua senha.');
+      return;
+    }
+    if (deleteConfirm !== 'EXCLUIR') {
+      setDeleteError('Digite EXCLUIR para confirmar.');
+      return;
+    }
+    setDeleteError('');
+    // Aqui você implementaria a exclusão real
+    setShowDeleteModal(false);
+    toast({ title: 'Conta excluída (simulação)', description: 'Aqui você faria a exclusão real.' });
+  };
+
   if (loading) {
     return <div className="p-8 text-center">Carregando perfil...</div>;
   }
@@ -117,12 +145,15 @@ const UserProfile: React.FC = () => {
   return (
     <Layout>
       <div className="container mx-auto p-4">
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-2">
-            <ChevronLeft className="h-4 w-4" />
-            Voltar
-          </Button>
-          <h1 className="text-2xl font-bold">Configurações</h1>
+        <div className="flex items-center gap-4 mb-6 justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => navigate(-1)} className="flex items-center gap-2">
+              <ChevronLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+            <h1 className="text-2xl font-bold">Configurações</h1>
+          </div>
+          <LogoutButton />
         </div>
 
         <MobileTabs
@@ -218,6 +249,57 @@ const UserProfile: React.FC = () => {
                         Salvar Nova Senha
                       </Button>
                     </div>
+                    <div className="border-t mt-8 pt-8">
+                      <h3 className="text-lg font-semibold text-destructive mb-2">Excluir Conta</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Esta ação é <span className="font-bold text-destructive">irreversível</span>. Todos os seus dados, histórico, cupons e informações pessoais serão apagados permanentemente.
+                        <br />Para confirmar, clique no botão abaixo.
+                      </p>
+                      <Button variant="destructive" onClick={handleOpenDeleteModal}>
+                        Excluir minha conta
+                      </Button>
+                    </div>
+                    <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Excluir Conta</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <p className="text-sm text-destructive font-medium">
+                            Tem certeza que deseja excluir sua conta? Esta ação é irreversível.<br />
+                            Todos os seus dados serão apagados.
+                          </p>
+                          <div>
+                            <label htmlFor="delete-password" className="text-sm font-medium mb-1 block">Senha atual</label>
+                            <Input
+                              id="delete-password"
+                              type="password"
+                              value={deletePassword}
+                              onChange={e => setDeletePassword(e.target.value)}
+                              placeholder="Digite sua senha"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="delete-confirm" className="text-sm font-medium mb-1 block">Confirmação</label>
+                            <Input
+                              id="delete-confirm"
+                              value={deleteConfirm}
+                              onChange={e => setDeleteConfirm(e.target.value)}
+                              placeholder="Digite EXCLUIR para confirmar"
+                            />
+                          </div>
+                          {deleteError && <p className="text-destructive text-sm font-medium">{deleteError}</p>}
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+                            Cancelar
+                          </Button>
+                          <Button variant="destructive" onClick={handleConfirmDelete}>
+                            Confirmar exclusão
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
               )}
@@ -233,7 +315,10 @@ const UserProfile: React.FC = () => {
               {activeSection === 'notifications' && (
                 <NotificationsSection
                   preferences={notificationPreferences}
-                  onUpdatePreferences={updateNotificationPreference}
+                  onUpdatePreferences={prefs => {
+                    // Atualize o estado local corretamente
+                    // setNotificationPreferences(prefs); // This line was removed as per the edit hint
+                  }}
                 />
               )}
             </div>

@@ -18,10 +18,10 @@ interface StandardQuickActionCardProps {
 const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userType, user, onValidateCoupon }) => {
   const navigate = useNavigate();
   const [pendingRequests, setPendingRequests] = useState(3); // Exemplo: 3 solicitações pendentes
-  const [pendingSchedules, setPendingSchedules] = useState(2); // Exemplo: 2 agendamentos pendentes
+  // Removido pendingSchedules mockado para usuário comum
 
   // Hook para dados reais do usuário
-  const { profile, loading } = useUserProfile(user?.id);
+  const { userData, loading } = useUserProfile(user?.id);
 
   // Função para navegação
   const handleNavigate = (path: string, stateData?: object) => {
@@ -57,7 +57,7 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
   // Definição das ações rápidas para o usuário comum
   if (userType === "common_user") {
     // Usar dados reais se disponíveis, senão usar fallback
-    const pendingCount = profile?.stats?.scheduled_collections || 0;
+    const pendingCount = userData?.stats?.scheduled_collections || 0;
     return (
       <Card>
         <CardHeader>
@@ -121,9 +121,9 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
               >
                 <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Agendamentos Ativos</span>
-                {pendingSchedules > 0 && (
+                {pendingCount > 0 && (
                   <span className="absolute top-1 right-1 bg-green-600 text-white text-xs rounded-full px-2 py-0.5">
-                    {pendingSchedules}
+                    {pendingCount}
                   </span>
                 )}
               </Button>
@@ -145,7 +145,8 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
   // Definição das ações rápidas para o coletor individual
   if (userType === "individual_collector") {
     // Usar dados reais se disponíveis, senão usar fallback
-    const pendingCount = profile?.stats?.scheduled_collections || 0;
+    const pendingCount = userData?.stats?.scheduled_collections || 0;
+    const recurringCount = userData?.stats?.active_recurring_collections || 0;
     const isLinked = user?.companyAffiliation;
     
     return (
@@ -163,25 +164,30 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
                 variant="outline" 
                 className="h-[48px] text-sm relative"
                 onClick={() => {
-                  setPendingSchedules(0);
+                  // setPendingSchedules(0); // Removido pendingSchedules mockado
                   handleNavigate(`/collector/schedule/${user?.id}`);
                 }}
               >
                 <ListTodo className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Agendamentos</span>
-                {pendingSchedules > 0 && (
-                  <span className="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
-                    {pendingSchedules}
+                {pendingCount > 0 && (
+                  <span className="absolute top-1 right-1 bg-green-600 text-white text-xs rounded-full px-2 py-0.5">
+                    {pendingCount}
                   </span>
                 )}
               </Button>
               <Button 
                 variant="outline" 
-                className="h-[48px] text-sm"
+                className="h-[48px] text-sm relative"
                 onClick={() => handleNavigate('/collector/recurring-schedules')}
               >
                 <Clock className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Recorrentes</span>
+                {recurringCount > 0 && (
+                  <span className="absolute top-1 right-1 bg-green-600 text-white text-xs rounded-full px-2 py-0.5">
+                    {recurringCount}
+                  </span>
+                )}
               </Button>
               {!isLinked && (
                 <Button 
@@ -261,6 +267,9 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
 
   // Definição das ações rápidas para a cooperativa
   if (userType === "cooperative" || userType === "cooperative_owner") {
+    const pendingRequests = userData?.stats?.pending_requests || 0;
+    const activeCollections = userData?.stats?.active_collections || 0;
+    const historyPendingScheduled = userData?.stats?.history_pending_scheduled || 0;
     return (
       <Card>
         <CardHeader>
@@ -300,7 +309,6 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
                 variant="outline"
                 className="w-full h-[48px] text-sm relative"
                 onClick={() => {
-                  setPendingRequests(0);
                   handleNavigate("/cooperative/requests");
                 }}
               >
@@ -330,19 +338,29 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
               </Button>
               <Button
                 variant="outline"
-                className="w-full h-[48px] text-sm"
+                className="w-full h-[48px] text-sm relative"
                 onClick={() => handleNavigate("/cooperative/collections")}
               >
                 <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Coletas</span>
+                {activeCollections > 0 && (
+                  <span className="absolute top-1 right-1 bg-green-600 text-white text-xs rounded-full px-2 py-0.5">
+                    {activeCollections}
+                  </span>
+                )}
               </Button>
               <Button
                 variant="outline"
-                className="w-full h-[48px] text-sm"
+                className="w-full h-[48px] text-sm relative"
                 onClick={() => handleNavigate('/collection-history', { userId: user?.id, userType: userType })}
               >
                 <History className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="whitespace-nowrap">Histórico de Coletas</span>
+                {historyPendingScheduled > 0 && (
+                  <span className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
+                    {historyPendingScheduled}
+                  </span>
+                )}
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -371,6 +389,9 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
 
   // Definição das ações rápidas para a empresa coletora
   if (userType === "collector_company_owner") {
+    const pendingRequests = userData?.stats?.pending_requests || 0;
+    const activeCollections = userData?.stats?.active_collections || 0;
+    const historyPendingScheduled = userData?.stats?.history_pending_scheduled || 0;
     return (
       <Card>
         <CardHeader>
@@ -417,10 +438,7 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
               <Button
                 variant="outline"
                 className="w-full h-[48px] text-sm relative"
-                onClick={() => {
-                  setPendingRequests(0);
-                  handleNavigate("/company/requests");
-                }}
+                onClick={() => handleNavigate("/company/requests")}
               >
                 <ClipboardList className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Solicitações</span>
@@ -432,19 +450,29 @@ const StandardQuickActionCard: React.FC<StandardQuickActionCardProps> = ({ userT
               </Button>
               <Button
                 variant="outline"
-                className="w-full h-[48px] text-sm"
+                className="w-full h-[48px] text-sm relative"
                 onClick={() => handleNavigate("/company/daily-collections")}
               >
                 <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Coletas</span>
+                {activeCollections > 0 && (
+                  <span className="absolute top-1 right-1 bg-green-600 text-white text-xs rounded-full px-2 py-0.5">
+                    {activeCollections}
+                  </span>
+                )}
               </Button>
               <Button
                 variant="outline"
-                className="w-full h-[48px] text-sm"
+                className="w-full h-[48px] text-sm relative"
                 onClick={() => handleNavigate('/collection-history', { userId: user?.id, userType: userType })}
               >
                 <History className="mr-2 h-4 w-4 flex-shrink-0" />
                 <span className="whitespace-nowrap">Histórico de Coletas</span>
+                {historyPendingScheduled > 0 && (
+                  <span className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
+                    {historyPendingScheduled}
+                  </span>
+                )}
               </Button>
               <Button
                 variant="outline"

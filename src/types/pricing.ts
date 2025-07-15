@@ -4,6 +4,7 @@ export interface MaterialPrice {
   price: number;
   unit: string;
   isActive: boolean;
+  identificador?: string;
 }
 
 export interface PriceAdjustment {

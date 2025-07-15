@@ -137,9 +137,9 @@ const getDefaultStats = (userType: string, entityType?: string, user?: any) => {
             label: 'Na plataforma'
           },
           {
-            icon: 'MapPin',
-            value: collector.collectorMetrics.coverageAreas.length,
-            label: 'Regiões Atendidas'
+            icon: 'Building2',
+            value: 'Não Vinculado',
+            label: 'Empresa Vinculada'
           }
         ];
       }
@@ -297,53 +297,28 @@ const getStatsFromProfile = (profile: any, userType: string, entityType?: string
         }
       ];
     case 'individual_collector':
-      if (profile.company_affiliation) {
-        return [
-          {
-            icon: 'Package',
-            value: `${stats.total_collected || 0}kg`,
-            label: 'Total Coletado'
-          },
-          {
-            icon: 'Star',
-            value: stats.rating || 4.8,
-            label: 'Avaliação'
-          },
-          {
-            icon: 'Calendar',
-            value: stats.platform_time || '36 meses',
-            label: 'Na plataforma'
-          },
-          {
-            icon: 'Building2',
-            value: profile.company_affiliation.company_name,
-            label: 'Empresa Vinculada'
-          }
-        ];
-      } else {
-        return [
-          {
-            icon: 'Package',
-            value: `${stats.total_collected || 0}kg`,
-            label: 'Total Coletado'
-          },
-          {
-            icon: 'Star',
-            value: stats.rating || 4.8,
-            label: 'Avaliação'
-          },
-          {
-            icon: 'Calendar',
-            value: stats.platform_time || '36 meses',
-            label: 'Na plataforma'
-          },
-          {
-            icon: 'MapPin',
-            value: stats.coverage_areas || 5,
-            label: 'Regiões Atendidas'
-          }
-        ];
-      }
+      return [
+        {
+          icon: 'Package',
+          value: `${stats.total_collected || 0}kg`,
+          label: 'Total Coletado'
+        },
+        {
+          icon: 'Star',
+          value: stats.rating || 0,
+          label: 'Avaliação'
+        },
+        {
+          icon: 'Calendar',
+          value: stats.platform_time || '0 meses',
+          label: 'Na plataforma'
+        },
+        {
+          icon: 'Building2',
+          value: profile.company_affiliation?.company_name || 'Não Vinculado',
+          label: 'Empresa Vinculada'
+        }
+      ];
     case 'cooperative_owner':
       return [
         {
@@ -604,9 +579,9 @@ const StandardDashboardHeader: React.FC<StandardDashboardHeaderProps> = ({
   isVerified,
   userId
 }) => {
-  const { profile, loading, error } = useUserProfile(userId);
+  const userProfile = useUserProfile(userId);
   // Se for usuário comum do mock, nunca mostrar loading
-  if (user.userType === 'common_user' && !profile) {
+  if (user.userType === 'common_user' && !userProfile.userData) {
     // ...renderização do card igual ao return principal, mas usando apenas os dados do mock...
     const finalStats = stats || getDefaultStats(user.userType, entity?.type, user);
     const showEntity = false;
@@ -672,31 +647,353 @@ const StandardDashboardHeader: React.FC<StandardDashboardHeaderProps> = ({
   }
   
   // Usar dados reais se disponíveis, senão usar dados mockados
-  const realStats = profile ? getStatsFromProfile(profile, user.userType, entity?.type) : null;
-  const finalStats = customStats || stats || realStats || getDefaultStats(user.userType, entity?.type, user);
+  let finalStats = null;
+  if (userProfile.userData) {
+    if (user.userType === 'individual_collector') {
+      const stats = userProfile.userData.stats || {};
+      const companyName = userProfile.userData.company_affiliation?.company_name || 'Não Vinculado';
+      finalStats = [
+        {
+          icon: 'Package',
+          value: stats.total_collected ?? 0,
+          label: 'Total Coletado'
+        },
+        {
+          icon: 'Star',
+          value: stats.rating ?? 0,
+          label: 'Avaliação'
+        },
+        {
+          icon: 'Calendar',
+          value: stats.platform_time ?? '0 meses',
+          label: 'Na plataforma'
+        },
+        {
+          icon: 'Building2',
+          value: companyName,
+          label: 'Empresa Vinculada'
+        }
+      ];
+    } else if (user.userType === 'cooperative_owner') {
+      const stats = userProfile.userData.stats || {};
+      finalStats = [
+        {
+          icon: 'Users',
+          value: stats.team_members ?? 0,
+          label: 'Cooperados'
+        },
+        {
+          icon: 'Star',
+          value: stats.rating ?? 0,
+          label: 'Avaliação'
+        },
+        {
+          icon: 'Package',
+          value: stats.monthly_volume ?? 0,
+          label: 'Volume Mensal'
+        },
+        {
+          icon: 'Calendar',
+          value: stats.platform_time ?? '0 meses',
+          label: 'Na Plataforma'
+        }
+      ];
+    } else if (user.userType === 'collector_company_owner') {
+      const stats = userProfile.userData.stats || {};
+      finalStats = [
+        {
+          icon: 'Users',
+          value: stats.team_members ?? 0,
+          label: 'Coletores'
+        },
+        {
+          icon: 'Star',
+          value: stats.rating ?? 0,
+          label: 'Avaliação'
+        },
+        {
+          icon: 'Package',
+          value: stats.monthly_volume ?? 0,
+          label: 'Volume Mensal'
+        },
+        {
+          icon: 'Calendar',
+          value: stats.platform_time ?? '0 meses',
+          label: 'Na Plataforma'
+        }
+      ];
+    } else if (user.userType === 'partner_owner') {
+      const stats = userProfile.userData.stats || {};
+      let partnerStats = [];
+      if (entity?.type === 'restaurant') {
+        partnerStats = [
+          {
+            icon: 'Users',
+            value: stats.customers_per_month ?? 0,
+            label: 'Clientes/Mês'
+          },
+          {
+            icon: 'Leaf',
+            value: stats.green_meals ?? 0,
+            label: 'Refeições Verdes'
+          },
+          {
+            icon: 'Ticket',
+            value: stats.coupons_served ?? 0,
+            label: 'Cupons Servidos'
+          },
+          {
+            icon: 'Calendar',
+            value: stats.platform_time ?? '0 meses',
+            label: 'Na Plataforma'
+          }
+        ];
+      } else if (entity?.type === 'store') {
+        partnerStats = [
+          {
+            icon: 'Users',
+            value: stats.customers_per_month ?? 0,
+            label: 'Clientes/Mês'
+          },
+          {
+            icon: 'Ticket',
+            value: stats.coupons_validated ?? 0,
+            label: 'Cupons Validados'
+          },
+          {
+            icon: 'Leaf',
+            value: stats.green_products ?? 0,
+            label: 'Produtos Verdes'
+          },
+          {
+            icon: 'Calendar',
+            value: stats.platform_time ?? '0 meses',
+            label: 'Na Plataforma'
+          }
+        ];
+      } else if (entity?.type === 'educational') {
+        partnerStats = [
+          {
+            icon: 'Users',
+            value: stats.customers_per_month ?? 0,
+            label: 'Alunos'
+          },
+          {
+            icon: 'Book',
+            value: stats.green_classes ?? 0,
+            label: 'Aulas Verdes'
+          },
+          {
+            icon: 'Leaf',
+            value: stats.sustainable_practices ?? 0,
+            label: 'Práticas Sustentáveis'
+          },
+          {
+            icon: 'Calendar',
+            value: stats.platform_time ?? '0 meses',
+            label: 'Na Plataforma'
+          }
+        ];
+      }
+      finalStats = partnerStats;
+    } else if (user.userType === 'common_user') {
+      const stats = userProfile.userData.stats || {};
+      finalStats = [
+        {
+          icon: 'Package',
+          value: stats.total_recycled ?? 0,
+          label: 'Total Reciclado'
+        },
+        {
+          icon: 'Star',
+          value: stats.rating ?? 0,
+          label: 'Avaliação'
+        },
+        {
+          icon: 'Calendar',
+          value: stats.scheduled_collections ?? 0,
+          label: 'Coletas Agendadas'
+        },
+        {
+          icon: 'Ticket',
+          value: stats.available_coupons ?? 0,
+          label: 'Cupons Disponíveis'
+        }
+      ];
+    } else {
+      finalStats = userProfile.userData ? getStatsFromProfile(userProfile.userData, user.userType, entity?.type) : null;
+    }
+  }
+  // Para cada perfil, se não houver dados, mostrar 0 ou referência amigável
+  if (user.userType === 'individual_collector' && !userProfile.userData) {
+    finalStats = [
+      {
+        icon: 'Package',
+        value: 0,
+        label: 'Total Coletado'
+      },
+      {
+        icon: 'Star',
+        value: 0,
+        label: 'Avaliação'
+      },
+      {
+        icon: 'Calendar',
+        value: '0 meses',
+        label: 'Na plataforma'
+      },
+      {
+        icon: 'Building2',
+        value: 'Não Vinculado',
+        label: 'Empresa Vinculada'
+      }
+    ];
+  }
+  if (user.userType === 'cooperative_owner' && !userProfile.userData) {
+    finalStats = [
+      {
+        icon: 'Users',
+        value: 0,
+        label: 'Cooperados'
+      },
+      {
+        icon: 'Star',
+        value: 0,
+        label: 'Avaliação'
+      },
+      {
+        icon: 'Package',
+        value: 0,
+        label: 'Volume Mensal'
+      },
+      {
+        icon: 'Calendar',
+        value: '0 meses',
+        label: 'Na Plataforma'
+      }
+    ];
+  }
+  if (user.userType === 'collector_company_owner' && !userProfile.userData) {
+    finalStats = [
+      {
+        icon: 'Users',
+        value: 0,
+        label: 'Coletores'
+      },
+      {
+        icon: 'Star',
+        value: 0,
+        label: 'Avaliação'
+      },
+      {
+        icon: 'Package',
+        value: 0,
+        label: 'Volume Mensal'
+      },
+      {
+        icon: 'Calendar',
+        value: '0 meses',
+        label: 'Na Plataforma'
+      }
+    ];
+  }
+  if (user.userType === 'partner_owner' && !userProfile.userData) {
+    let partnerStats = [];
+    if (entity?.type === 'restaurant') {
+      partnerStats = [
+        {
+          icon: 'Users',
+          value: 0,
+          label: 'Clientes/Mês'
+        },
+        {
+          icon: 'Leaf',
+          value: 0,
+          label: 'Refeições Verdes'
+        },
+        {
+          icon: 'Ticket',
+          value: 0,
+          label: 'Cupons Servidos'
+        },
+        {
+          icon: 'Calendar',
+          value: '0 meses',
+          label: 'Na Plataforma'
+        }
+      ];
+    } else if (entity?.type === 'store') {
+      partnerStats = [
+        {
+          icon: 'Users',
+          value: 0,
+          label: 'Clientes/Mês'
+        },
+        {
+          icon: 'Ticket',
+          value: 0,
+          label: 'Cupons Validados'
+        },
+        {
+          icon: 'Leaf',
+          value: 0,
+          label: 'Produtos Verdes'
+        },
+        {
+          icon: 'Calendar',
+          value: '0 meses',
+          label: 'Na Plataforma'
+        }
+      ];
+    } else if (entity?.type === 'educational') {
+      partnerStats = [
+        {
+          icon: 'Users',
+          value: 0,
+          label: 'Alunos'
+        },
+        {
+          icon: 'Book',
+          value: 0,
+          label: 'Aulas Verdes'
+        },
+        {
+          icon: 'Leaf',
+          value: 0,
+          label: 'Práticas Sustentáveis'
+        },
+        {
+          icon: 'Calendar',
+          value: '0 meses',
+          label: 'Na Plataforma'
+        }
+      ];
+    }
+    finalStats = partnerStats;
+  }
   
   const showEntity = shouldShowEntity(user.userType, user);
   const EntityIcon = entity ? getEntityIcon(entity.type) : Building2;
   const UserTypeIcon = getUserTypeIcon(user.userType);
 
   // Usar dados reais do perfil se disponíveis
-  const displayUser = profile ? {
+  const displayUser = userProfile.userData ? {
     ...user,
-    name: profile.name,
-    avatar: profile.avatar ? { src: profile.avatar, fallback: profile.name.charAt(0) } : user.avatar,
+    name: userProfile.userData.name,
+    avatar: userProfile.userData.avatar ? { src: userProfile.userData.avatar, fallback: userProfile.userData.name.charAt(0) } : user.avatar,
     level: user.level
   } : user;
 
-  const displayEntity = profile?.entity ? {
+  const displayEntity = userProfile.userData?.entity ? {
     ...entity,
-    name: profile.entity.name,
-    type: profile.entity.type,
-    isVerified: profile.entity.is_verified,
-    avatar: profile.entity.avatar ? { src: profile.entity.avatar, fallback: profile.entity.name.charAt(0) } : entity?.avatar,
-    metrics: profile.entity.metrics
+    name: userProfile.userData.entity.name,
+    type: userProfile.userData.entity.type,
+    isVerified: userProfile.userData.entity.is_verified,
+    avatar: userProfile.userData.entity.avatar ? { src: userProfile.userData.entity.avatar, fallback: userProfile.userData.entity.name.charAt(0) } : entity?.avatar,
+    metrics: userProfile.userData.entity.metrics
   } : entity;
 
-  if (loading) {
+  if (userProfile.loading) {
     return (
       <Card className="mb-6">
         <CardContent className="p-4 sm:p-6">
@@ -846,11 +1143,11 @@ const StandardDashboardHeader: React.FC<StandardDashboardHeaderProps> = ({
               )}
 
               {/* Informações de Vínculo do Coletor */}
-              {displayUser.userType === 'individual_collector' && profile?.company_affiliation && (
+              {displayUser.userType === 'individual_collector' && userProfile.userData?.company_affiliation && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                   <Info className="h-4 w-4 shrink-0" />
                   <span className="truncate">
-                    Vinculado desde {profile.company_affiliation.since || '-'}
+                    Vinculado desde {userProfile.userData.company_affiliation.since || '-'}
                   </span>
                 </div>
               )}

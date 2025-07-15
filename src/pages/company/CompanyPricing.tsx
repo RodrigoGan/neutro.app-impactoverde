@@ -11,39 +11,14 @@ import { ChevronLeft, Plus, Trash2, Search, DollarSign, ShoppingCart } from 'luc
 import { MaterialPrice, PriceAdjustment } from '@/types/pricing';
 import { toast } from 'sonner';
 import { materialDisplayData } from '@/config/materialDisplayData';
-
-// Mock de dados (em produção, viria do backend) - usando identificadores corretos
-const mockMaterials: MaterialPrice[] = [
-  { materialId: '1', name: 'papel', price: 0.50, unit: 'kg', isActive: true },
-  { materialId: '2', name: 'plastico', price: 0.30, unit: 'kg', isActive: true },
-  { materialId: '3', name: 'aluminio', price: 2.00, unit: 'kg', isActive: true },
-  { materialId: '4', name: 'vidro', price: 0.20, unit: 'kg', isActive: true },
-  { materialId: '5', name: 'organico', price: 0.10, unit: 'kg', isActive: true },
-];
-
-const mockPartners = [
-  { id: '1', name: 'Cooperativa Verde', type: 'cooperative' },
-  { id: '2', name: 'Coletor João Silva', type: 'collector' },
-  { id: '3', name: 'Cooperativa Recicla Mais', type: 'cooperative' },
-  { id: '4', name: 'Coletor Maria Santos', type: 'collector' },
-];
-
-// Função para obter o nome amigável do material
-function getMaterialDisplayName(identificador: string): string {
-  return materialDisplayData[identificador]?.nome || identificador;
-}
-
-// Função para obter o ícone do material
-function getMaterialIcon(identificador: string) {
-  const Icon = materialDisplayData[identificador]?.icone || ShoppingCart;
-  const cor = materialDisplayData[identificador]?.cor || 'text-neutral-400';
-  return <Icon className={`inline-block mr-1 ${cor} h-4 w-4`} />;
-}
+import { supabase } from '@/lib/supabaseClient';
+import AppFooter from '@/components/AppFooter';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export const CompanyPricing: React.FC = () => {
   const navigate = useNavigate();
-  const [materials, setMaterials] = useState<MaterialPrice[]>(mockMaterials);
-  const [originalMaterials, setOriginalMaterials] = useState<MaterialPrice[]>(mockMaterials);
+  const [materials, setMaterials] = useState<MaterialPrice[]>([]);
+  const [originalMaterials, setOriginalMaterials] = useState<MaterialPrice[]>([]);
   const [searchPartner, setSearchPartner] = useState('');
   const [selectedPartner, setSelectedPartner] = useState<any | null>(null);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
@@ -55,18 +30,103 @@ export const CompanyPricing: React.FC = () => {
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [selectedMaterialType, setSelectedMaterialType] = useState<string>(Object.keys(materialDisplayData)[0]);
-  const [partnerAdjustments, setPartnerAdjustments] = useState<Record<string, { [materialId: string]: number }>>({});
-  const [originalPartnerAdjustments, setOriginalPartnerAdjustments] = useState<Record<string, { [materialId: string]: number }>>({});
+  const [partnerAdjustments, setPartnerAdjustments] = useState<Record<string, { [materialId: string]: { price: number, unit?: string, description?: string } }>>({});
+  const [originalPartnerAdjustments, setOriginalPartnerAdjustments] = useState<Record<string, { [materialId: string]: { price: number, unit?: string, description?: string } }>>({});
   const [savingAdjustments, setSavingAdjustments] = useState(false);
+  const [partners, setPartners] = useState<any[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(true);
+  const [loadingPartners, setLoadingPartners] = useState(true);
+  const [loadingAdjustments, setLoadingAdjustments] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Adicionar estado para descrição do material 'outros' por parceiro/material
+  const [outrosDescriptions, setOutrosDescriptions] = useState<Record<string, string>>({});
+  // Adicionar estado para controlar o foco do input de preço de 'outros'
+  const [outrosInputFocused, setOutrosInputFocused] = useState<Record<string, boolean>>({});
+  // No estado do componente:
+  const [newMaterialDescription, setNewMaterialDescription] = useState('');
+  const [addMaterialLoading, setAddMaterialLoading] = useState(false);
+  const [addMaterialError, setAddMaterialError] = useState<string | null>(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
+  // Buscar materiais reais do banco
+  useEffect(() => {
+    async function fetchMaterials() {
+      setLoadingMaterials(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase
+          .from('materials')
+          .select('id, name, unit, is_active, identificador')
+          .eq('is_active', true)
+          .order('name');
+        if (error) throw error;
+        let mats = (data || []).map(mat => ({
+          materialId: mat.id,
+          name: mat.name,
+          identificador: mat.identificador || 'outros',
+          price: 0,
+          unit: mat.unit || 'kg',
+          isActive: mat.is_active
+        }));
+        // Ordenar alfabeticamente, exceto 'outros' por último
+        mats = mats.sort((a, b) => {
+          if (a.identificador === 'outros') return 1;
+          if (b.identificador === 'outros') return -1;
+          return a.name.localeCompare(b.name, 'pt-BR');
+        });
+        setMaterials(mats);
+        setOriginalMaterials(mats);
+      } catch (err) {
+        setError('Erro ao buscar materiais.');
+        setMaterials([]);
+      } finally {
+        setLoadingMaterials(false);
+      }
+    }
+    fetchMaterials();
+  }, []);
+
+  // Buscar parceiros reais do banco
+  useEffect(() => {
+    async function fetchPartners() {
+      setLoadingPartners(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, name, user_type')
+          .in('user_type', ['individual_collector', 'cooperative_owner']);
+        if (error) throw error;
+        setPartners(data || []);
+      } catch (err) {
+        setError('Erro ao buscar parceiros.');
+        setPartners([]);
+      } finally {
+        setLoadingPartners(false);
+      }
+    }
+    fetchPartners();
+  }, []);
+
   // Filtragem de parceiros
-  const filteredPartners = mockPartners.filter(partner => 
+  const filteredPartners = partners.filter(partner => 
     partner.name.toLowerCase().includes(searchPartner.toLowerCase())
   );
+
+  // Função para obter o nome amigável do material
+  function getMaterialDisplayName(identificador: string): string {
+    return materialDisplayData[identificador]?.nome || identificador;
+  }
+
+  // Função para obter o ícone do material
+  function getMaterialIcon(identificador: string) {
+    const Icon = materialDisplayData[identificador]?.icone || ShoppingCart;
+    const cor = materialDisplayData[identificador]?.cor || 'text-neutral-400';
+    return <Icon className={`inline-block mr-1 ${cor} h-4 w-4`} />;
+  }
 
   // Função para formatar preço no formato brasileiro
   const formatPrice = (value: number): string => {
@@ -105,26 +165,65 @@ export const CompanyPricing: React.FC = () => {
     }
   };
 
-  // Função para adicionar novo material
-  const handleAddMaterial = () => {
-    if (!newMaterial.name) return;
-    
-    const material: MaterialPrice = {
-      materialId: Date.now().toString(),
-      name: newMaterial.name,
-      price: newMaterial.price || 0,
-      unit: newMaterial.unit || 'kg',
-      isActive: true
-    };
-
-    setMaterials([...materials, material]);
-    setNewMaterial({ name: '', price: 0, unit: 'kg', isActive: true });
-    setShowAddMaterial(false);
+  // Função aprimorada para adicionar novo material
+  const handleAddMaterial = async () => {
+    setAddMaterialError(null);
+    if (!selectedPartner) {
+      setAddMaterialError('Selecione um parceiro para adicionar material.');
+      return;
+    }
+    if (!selectedMaterialType || !newMaterial.name || !newMaterial.price || !newMaterial.unit) {
+      setAddMaterialError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    // Verifica se já existe material cadastrado para o parceiro
+    const alreadyExists = Object.keys(partnerAdjustments[selectedPartner.id] || {}).includes(selectedMaterialType);
+    if (alreadyExists) {
+      setAddMaterialError('Este material já está cadastrado para este parceiro.');
+      return;
+    }
+    setAddMaterialLoading(true);
+    try {
+      const companyId = JSON.parse(localStorage.getItem('authUser') || '{}').entity_id;
+      const collectorId = selectedPartner.id;
+      const materialId = materials.find(m => m.identificador === selectedMaterialType)?.materialId;
+      const description = selectedMaterialType === 'outros' ? newMaterial.name : '';
+      // Ao adicionar novo material, garantir que partnerAdjustments salva um objeto { price, unit, description }
+      setPartnerAdjustments(prev => ({
+        ...prev,
+        [collectorId]: {
+          ...prev[collectorId],
+          [materialId]: {
+            price: newMaterial.price,
+            unit: newMaterial.unit,
+            description: description,
+          },
+        },
+      }));
+      if (selectedMaterialType === 'outros') {
+        setOutrosDescriptions(prev => ({ ...prev, [collectorId]: newMaterial.name }));
+      }
+      setShowAddMaterial(false);
+      setNewMaterial({ name: '', price: 0, unit: 'kg', isActive: true });
+      setNewMaterialDescription('');
+      toast.success('Material adicionado com sucesso!');
+    } catch (err: any) {
+      setAddMaterialError('Erro ao adicionar material.');
+    } finally {
+      setAddMaterialLoading(false);
+    }
   };
 
   // Função para remover material
   const handleDeleteMaterial = (materialId: string) => {
-    setMaterials(materials.filter(m => m.materialId !== materialId));
+    if (!selectedPartner) return;
+    setPartnerAdjustments(prev => {
+      const updated = { ...prev };
+      if (updated[selectedPartner.id]) {
+        delete updated[selectedPartner.id][materialId];
+      }
+      return updated;
+    });
     setShowDeleteConfirm(null);
   };
 
@@ -145,8 +244,11 @@ export const CompanyPricing: React.FC = () => {
       ...prev,
       [selectedPartner.id]: {
         ...prev[selectedPartner.id],
-        [materialId]: value
-      }
+        [materialId]: {
+          ...prev[selectedPartner.id]?.[materialId],
+          price: value,
+        },
+      },
     }));
   };
 
@@ -157,8 +259,11 @@ export const CompanyPricing: React.FC = () => {
       ...prev,
       [partnerId]: {
         ...prev[partnerId],
-        [materialId]: isNaN(numericValue) ? 0 : numericValue
-      }
+        [materialId]: {
+          ...prev[partnerId]?.[materialId],
+          price: isNaN(numericValue) ? 0 : numericValue,
+        },
+      },
     }));
   };
 
@@ -192,27 +297,86 @@ export const CompanyPricing: React.FC = () => {
     }
   }, [selectedPartner]);
 
-  // Salvar ajustes (mock)
-  const handleSaveAdjustments = () => {
-    setSavingAdjustments(true);
-    setTimeout(() => {
-      setSavingAdjustments(false);
-      toast.success('Ajustes salvos com sucesso!');
-      // Atualizar os estados originais após salvar
-      setOriginalMaterials(materials);
-      if (selectedPartner) {
-        setOriginalPartnerAdjustments(prev => ({
-          ...prev,
-          [selectedPartner.id]: partnerAdjustments[selectedPartner.id] || {}
-        }));
+  // Carregar ajustes do parceiro selecionado
+  useEffect(() => {
+    if (!selectedPartner) return;
+    async function fetchAdjustments() {
+      setLoadingAdjustments(true);
+      setError(null);
+      try {
+        const companyId = JSON.parse(localStorage.getItem('authUser') || '{}').entity_id;
+        const collectorId = selectedPartner.id;
+        const { data, error } = await supabase
+          .from('collector_price_adjustments')
+          .select('material_id, adjustment_value, description, unit')
+          .eq('collector_id', collectorId)
+          .eq('company_id', companyId);
+        if (error) throw error;
+        // Ao carregar ajustes do parceiro, montar objeto com unit, price e description
+        const adjustments: Record<string, { price: number, unit?: string, description?: string }> = {};
+        const outrosDescs: Record<string, string> = {};
+        (data || []).forEach(adj => {
+          adjustments[adj.material_id] = {
+            price: Number(adj.adjustment_value),
+            unit: adj.unit,
+            description: adj.description
+          };
+          if (adj.material_id && adj.description && adj.description.length > 0) {
+            outrosDescs[collectorId] = adj.description;
+          }
+        });
+        setPartnerAdjustments(prev => ({ ...prev, [collectorId]: adjustments }));
+        setOutrosDescriptions(prev => ({ ...prev, ...outrosDescs }));
+      } catch (err: any) {
+        setError('Erro ao carregar ajustes.');
+      } finally {
+        setLoadingAdjustments(false);
       }
-    }, 1000);
+    }
+    fetchAdjustments();
+  }, [selectedPartner]);
+
+  // Salvar ajustes (incluindo descrição de "outros")
+  const handleSaveAdjustments = async () => {
+    if (!selectedPartner) return;
+    setSavingAdjustments(true);
+    try {
+      const companyId = JSON.parse(localStorage.getItem('authUser') || '{}').entity_id;
+      const collectorId = selectedPartner.id;
+      const adjustments = partnerAdjustments[collectorId] || {};
+      // Garantir que 'updates' está corretamente declarada
+      const updates = Object.entries(adjustments).map(async ([materialId, ajuste]) => {
+        let description = '';
+        let unit = '';
+        // Se for material 'outros', pega a descrição
+        const material = materials.find(m => m.materialId === materialId);
+        if (material?.identificador === 'outros') {
+          description = outrosDescriptions[collectorId] || '';
+        }
+        // Upsert ajuste
+        const { error } = await supabase.from('collector_price_adjustments').upsert({
+          company_id: companyId,
+          collector_id: collectorId,
+          material_id: materialId,
+          price: ajuste.price,
+          description,
+          unit: ajuste.unit || '', // Adiciona a unidade do material original
+        }, { onConflict: 'company_id,collector_id,material_id' });
+        if (error) throw error;
+      });
+      await Promise.all(updates);
+      toast.success('Ajustes salvos com sucesso!');
+    } catch (err: any) {
+      toast.error('Erro ao salvar ajustes.');
+    } finally {
+      setSavingAdjustments(false);
+    }
   };
 
   // Função para calcular o preço final com ajuste
-  const calculateFinalPrice = (basePrice: number, adjustment?: number): number => {
-    if (!adjustment) return basePrice;
-    return basePrice + adjustment;
+  const calculateFinalPrice = (basePrice: number, ajuste?: { price: number }) => {
+    if (!ajuste || typeof ajuste !== 'object') return basePrice;
+    return basePrice + (ajuste.price || 0);
   };
 
   return (
@@ -243,38 +407,36 @@ export const CompanyPricing: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {materials.map((material) => (
-                    <div key={material.materialId} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {getMaterialIcon(material.name)}
-                        <div>
-                          <p className="font-medium">{getMaterialDisplayName(material.name)}</p>
-                          <p className="text-sm text-muted-foreground">Preço base por {material.unit}</p>
+                {/* Renderizar lista de materiais cadastrados para o parceiro selecionado */}
+                <div className="space-y-1">
+                  {selectedPartner && partnerAdjustments[selectedPartner.id] && Object.keys(partnerAdjustments[selectedPartner.id]).length > 0 ? (
+                    Object.entries(partnerAdjustments[selectedPartner.id]).map(([materialId, ajusteRaw]) => {
+                      const ajuste = typeof ajusteRaw === 'object' ? ajusteRaw : { price: ajusteRaw };
+                      const material = materials.find(m => m.materialId === materialId);
+                      if (!material) return null;
+                      const isOutros = material.identificador === 'outros';
+                      return (
+                        <div key={material.materialId} className="flex items-center px-2 py-1 bg-muted/50 rounded-md">
+                          {getMaterialIcon(material.identificador)}
+                          <span className="ml-2 font-medium">{getMaterialDisplayName(material.identificador)}</span>
+                          <span className="ml-2 text-muted-foreground text-xs">{ajuste.unit ? `por ${ajuste.unit}` : (material.unit ? `por ${material.unit}` : '')}</span>
+                          <span className="ml-4 font-semibold">R$ {Number(ajuste.price).toFixed(2)}</span>
+                          {isOutros && (
+                            <span className="ml-4 italic text-xs text-muted-foreground">{ajuste.description || ''}</span>
+                          )}
+                          <div className="flex-1" />
+                          {/* <Button size="sm" variant="outline" className="ml-2 px-2 py-1 text-xs" onClick={() => handleEditMaterial(material)}>
+                            Editar
+                          </Button> */}
+                          <Button size="sm" variant="destructive" className="ml-2 px-2 py-1 text-xs" onClick={() => handleDeleteMaterial(material.materialId)}>
+                            Excluir
+                          </Button>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">R$</span>
-                          <Input
-                            type="text"
-                            value={typeof material.price === 'number' ? formatPrice(material.price) : material.price}
-                            onChange={(e) => handleBasePriceInputChange(material.materialId, e.target.value)}
-                            onBlur={(e) => handleBasePriceInputBlur(material.materialId, e.target.value)}
-                            className="w-24"
-                            placeholder="0,00"
-                          />
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setShowDeleteConfirm(material.materialId)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                      );
+                    })
+                  ) : (
+                    <div className="text-center text-muted-foreground py-4">Nenhum material cadastrado para este parceiro.</div>
+                  )}
                 </div>
               </CardContent>
               <CardFooter className="flex gap-2">
@@ -292,7 +454,7 @@ export const CompanyPricing: React.FC = () => {
           <div>
             <Card className="w-full max-w-lg mx-auto sm:max-w-none sm:w-full">
               <CardHeader>
-                <CardTitle>Ajustes por Parceiro</CardTitle>
+                <CardTitle>Acréscimo de Valor para Coletor Vinculado</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -302,32 +464,40 @@ export const CompanyPricing: React.FC = () => {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar parceiro..."
+                          placeholder="Buscar Coletor Vinculado..."
                           value={searchPartner}
                           onChange={(e) => setSearchPartner(e.target.value)}
                           className="pl-9"
                         />
                       </div>
                       <div className="space-y-2">
-                        {filteredPartners.map((partner) => (
-                          <div
-                            key={partner.id}
-                            className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-muted/50`}
-                            onClick={() => setSelectedPartner(partner)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium">{partner.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {partner.type === 'cooperative' ? 'Cooperativa' : 'Coletor Individual'}
-                                </p>
+                        {loadingPartners ? (
+                          <p>Carregando parceiros...</p>
+                        ) : error ? (
+                          <p className="text-red-500">{error}</p>
+                        ) : filteredPartners.length === 0 ? (
+                          <div className="text-center text-muted-foreground py-4">Nenhum coletor individual vinculado disponível para acréscimo.</div>
+                        ) : (
+                          filteredPartners.map((partner) => (
+                            <div
+                              key={partner.id}
+                              className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-muted/50`}
+                              onClick={() => setSelectedPartner(partner)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium">{partner.name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {partner.user_type === 'individual_collector' ? 'Coletor Individual' : 'Cooperativa'}
+                                  </p>
+                                </div>
+                                <Badge variant="outline" className="bg-green-100 text-green-700">
+                                  {partner.user_type === 'individual_collector' ? 'Coletor' : 'Cooperativa'}
+                                </Badge>
                               </div>
-                              <Badge variant="outline" className="bg-green-100 text-green-700">
-                                {partner.type === 'cooperative' ? 'Cooperativa' : 'Coletor'}
-                              </Badge>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     </>
                   )}
@@ -337,7 +507,7 @@ export const CompanyPricing: React.FC = () => {
                       <div>
                         <p className="font-medium">{selectedPartner.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {selectedPartner.type === 'cooperative' ? 'Cooperativa' : 'Coletor Individual'}
+                          {selectedPartner.user_type === 'individual_collector' ? 'Coletor Individual' : 'Cooperativa'}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 mt-2 sm:mt-0">
@@ -352,36 +522,59 @@ export const CompanyPricing: React.FC = () => {
                     <div className="mt-4 border-t pt-4">
                       <div className="font-semibold mb-2">Ajustar preços para {selectedPartner.name}</div>
                       <div className="space-y-2 pr-2">
-                        {materials.map((material) => {
-                          const adjustment = partnerAdjustments[selectedPartner.id]?.[material.materialId] || 0;
-                          const finalPrice = calculateFinalPrice(Number(material.price), adjustment);
-                          return (
-                            <div key={material.materialId} className="flex items-center gap-2">
-                              <span className="flex items-center min-w-[110px]">
-                                {getMaterialIcon(material.name)}
-                                {getMaterialDisplayName(material.name)}
-                              </span>
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <span>Base: R$ {typeof material.price === 'number' ? formatPrice(material.price) : material.price}</span>
-                                {adjustment !== 0 && (
-                                  <>
-                                    <span>|</span>
-                                    <span>Final: R$ {formatPrice(finalPrice)}</span>
-                                  </>
+                        {loadingAdjustments ? (
+                          <p>Carregando ajustes...</p>
+                        ) : error ? (
+                          <p className="text-red-500">{error}</p>
+                        ) : materials.length === 0 ? (
+                          <p>Nenhum material disponível para ajustar.</p>
+                        ) : (
+                          materials.map((material) => {
+                            let ajuste = partnerAdjustments[selectedPartner.id]?.[material.materialId];
+                            if (ajuste && typeof ajuste !== 'object') {
+                              ajuste = { price: ajuste };
+                            }
+                            const adjustment = ajuste ? ajuste.price : 0;
+                            const finalPrice = calculateFinalPrice(Number(material.price), ajuste);
+                            return (
+                              <div key={material.materialId} className="flex items-center gap-2">
+                                <span className="flex items-center min-w-[110px]">
+                                  {getMaterialIcon(material.identificador)}
+                                  {getMaterialDisplayName(material.identificador)}
+                                </span>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <span>Base: R$ {typeof material.price === 'number' ? formatPrice(material.price) : material.price}</span>
+                                  {adjustment !== 0 && (
+                                    <>
+                                      <span>|</span>
+                                      <span>Final: R$ {formatPrice(finalPrice)}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <Input
+                                  type="text"
+                                  className="w-16 h-7 text-xs ml-auto"
+                                  value={adjustment !== 0 ? formatPrice(adjustment) : ''}
+                                  onChange={e => handleAdjustmentChange(material.materialId, e.target.value)}
+                                  onBlur={e => handleAdjustmentInputBlur(selectedPartner.id, material.materialId, e.target.value)}
+                                  placeholder="0,00"
+                                  inputMode="decimal"
+                                />
+                                {/* Campo de descrição para 'outros' */}
+                                {material.identificador === 'outros' && adjustment !== 0 && (
+                                  <Input
+                                    type="text"
+                                    className="w-64 h-7 text-xs ml-2"
+                                    placeholder="Descreva o material..."
+                                    value={outrosDescriptions[selectedPartner.id] || ''}
+                                    onChange={e => setOutrosDescriptions(prev => ({ ...prev, [selectedPartner.id]: e.target.value }))}
+                                    maxLength={100}
+                                  />
                                 )}
                               </div>
-                              <Input
-                                type="text"
-                                className="w-16 h-7 text-xs ml-auto"
-                                value={adjustment !== 0 ? formatPrice(adjustment) : ''}
-                                onChange={e => handleAdjustmentChange(material.materialId, e.target.value)}
-                                onBlur={e => handleAdjustmentInputBlur(selectedPartner.id, material.materialId, e.target.value)}
-                                placeholder="0,00"
-                                inputMode="decimal"
-                              />
-                            </div>
-                          )
-                        })}
+                            )
+                          })
+                        )}
                       </div>
                       <div className="flex gap-2 mt-4">
                         <Button variant="outline" onClick={handleCancelPartnerAdjustments} className="flex-1">
@@ -392,6 +585,9 @@ export const CompanyPricing: React.FC = () => {
                         </Button>
                       </div>
                     </div>
+                  )}
+                  {selectedPartner && (!partnerAdjustments[selectedPartner.id] || Object.keys(partnerAdjustments[selectedPartner.id]).length === 0) && (
+                    <div className="text-center text-muted-foreground py-4">Nenhum material cadastrado para este parceiro.</div>
                   )}
                 </div>
               </CardContent>
@@ -408,27 +604,45 @@ export const CompanyPricing: React.FC = () => {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Tipo de Material</label>
-                <select
-                  className="w-full p-2 border rounded-md"
+                <Select
                   value={selectedMaterialType}
-                  onChange={e => handleSelectMaterialType(e.target.value)}
+                  onValueChange={handleSelectMaterialType}
                 >
-                  {Object.entries(materialDisplayData).map(([identificador, material]) => (
-                    <option key={identificador} value={identificador}>
-                      {material.nome}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Ordenar materiais alfabeticamente, exceto 'outros' por último */}
+                    {[
+                      ...Object.entries(materialDisplayData)
+                        .filter(([identificador]) => identificador !== 'outros')
+                        .sort((a, b) => a[1].nome.localeCompare(b[1].nome)),
+                      ...Object.entries(materialDisplayData).filter(([identificador]) => identificador === 'outros')
+                    ].map(([identificador, material]) => (
+                      <SelectItem key={identificador} value={identificador}>
+                        <div className="flex items-center gap-2">
+                          {material.icone && (
+                            <material.icone className={`h-4 w-4 ${material.cor || ''}`} />
+                          )}
+                          <span>{material.nome}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nome do Material</label>
-                <Input
-                  value={newMaterial.name}
-                  onChange={e => setNewMaterial({ ...newMaterial, name: e.target.value })}
-                  placeholder="Ex: Papelão, Plástico, etc."
-                  disabled={selectedMaterialType !== 'outros'}
-                />
-              </div>
+              {/* Campo de nome/descrição só para 'outros' */}
+              {selectedMaterialType === 'outros' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Descreva o Material</label>
+                  <Input
+                    value={newMaterial.name}
+                    onChange={e => setNewMaterial({ ...newMaterial, name: e.target.value })}
+                    placeholder="Ex: Entulho limpo, Pneus, etc."
+                    maxLength={100}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Preço Base (R$)</label>
                 <Input
@@ -450,13 +664,14 @@ export const CompanyPricing: React.FC = () => {
                   <option value="l">Litro (l)</option>
                 </select>
               </div>
+              {addMaterialError && <div className="text-red-500 text-sm">{addMaterialError}</div>}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddMaterial(false)}>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:gap-0">
+              <Button variant="outline" onClick={() => setShowAddMaterial(false)} disabled={addMaterialLoading}>
                 Cancelar
               </Button>
-              <Button onClick={handleAddMaterial}>
-                Adicionar Material
+              <Button onClick={handleAddMaterial} disabled={addMaterialLoading}>
+                {addMaterialLoading ? 'Adicionando...' : 'Adicionar Material'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -481,6 +696,9 @@ export const CompanyPricing: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      </div>
+      <div className="mt-8">
+        <AppFooter />
       </div>
     </Layout>
   );
