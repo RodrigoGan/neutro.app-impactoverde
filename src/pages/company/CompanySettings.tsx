@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,10 @@ import { MobileTabs } from '@/components/ui/mobile-tabs';
 import { NotificationsSection } from '@/components/profile/NotificationsSection';
 import { NotificationPreference } from '@/types/user';
 import LogoutButton from '@/components/ui/LogoutButton';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/components/ui/use-toast';
+import { supabase } from '@/lib/supabaseClient';
 
 type SettingsSection = 'perfil' | 'endereco' | 'plano' | 'seguranca' | 'notificacoes';
 
@@ -61,9 +65,16 @@ const getTabTitle = (tabId: string) => {
 
 const CompanySettings: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
+  const { userProfile, loading, error } = useUserProfile(authUser?.id);
+  
   const [activeSection, setActiveSection] = useState<SettingsSection>('perfil');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  
+  // Estado local para dados editáveis
+  const [user, setUser] = useState(userProfile);
+  
   const [address, setAddress] = useState({
     cep: '',
     logradouro: '',
@@ -74,6 +85,7 @@ const CompanySettings: React.FC = () => {
     cidade: '',
     estado: ''
   });
+  
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('');
@@ -81,28 +93,9 @@ const CompanySettings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [bairro, setBairro] = useState('Centro');
-  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreference[]>([
-    {
-      type: 'email',
-      enabled: true,
-      categories: {
-        collections: true,
-        achievements: true,
-        promotions: false,
-        system: true,
-      },
-    },
-    {
-      type: 'push',
-      enabled: true,
-      categories: {
-        collections: true,
-        achievements: true,
-        promotions: true,
-        system: true,
-      },
-    },
-  ]);
+  
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreference[]>([]);
+  
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -113,20 +106,38 @@ const CompanySettings: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
-  // Dados mockados da empresa
-  const companyData = {
-    name: 'Empresa Verde',
-    email: 'contato@empresaverde.com',
-    phone: '(11) 99999-9999',
-    cnpj: '12.345.678/0001-90',
-    address: 'Rua das Flores, 123 - Centro',
-    city: 'São Paulo',
-    state: 'SP',
-    plan: 'Carbon Free',
-    planValue: 'R$ 249,90/mês',
-    verified: true,
-    avatar: '/placeholder-avatar.jpg'
-  };
+  // Carregar dados reais quando userProfile mudar
+  useEffect(() => {
+    if (userProfile) {
+      console.log('🔄 [CompanySettings] Carregando dados do userProfile:', userProfile);
+      setUser(userProfile);
+      
+      // Carregar endereço principal
+      if (userProfile.addresses && userProfile.addresses.length > 0) {
+        const mainAddress = userProfile.addresses.find(addr => addr.isMain) || userProfile.addresses[0];
+        console.log('🏠 [CompanySettings] Endereço principal carregado:', mainAddress);
+        setAddress({
+          cep: mainAddress.zipCode || '',
+          logradouro: mainAddress.street || '',
+          numero: mainAddress.number || '',
+          complemento: mainAddress.complement || '',
+          referencia: '',
+          bairro: mainAddress.neighborhood || '',
+          cidade: mainAddress.city || '',
+          estado: mainAddress.state || ''
+        });
+      }
+      
+      // Carregar preferências de notificação
+      if (userProfile.notificationPreferences) {
+        console.log('🔔 [CompanySettings] Preferências de notificação carregadas:', userProfile.notificationPreferences);
+        setNotificationPreferences(userProfile.notificationPreferences);
+      } else {
+        console.log('⚠️ [CompanySettings] Nenhuma preferência de notificação encontrada, usando padrão');
+        setNotificationPreferences([]);
+      }
+    }
+  }, [userProfile]);
 
   // Planos disponíveis para empresas
   const availablePlans = [
@@ -144,17 +155,143 @@ const CompanySettings: React.FC = () => {
   const userPlan = getUserPlan();
 
   const handleInputChange = (field: string, value: string) => {
-    setHasUnsavedChanges(true);
+    if (user) {
+      setUser(prev => prev ? { ...prev, [field]: value } : null);
+      setHasUnsavedChanges(true);
+    }
   };
 
-  const handleSaveChanges = () => {
-    setHasUnsavedChanges(false);
-    // Aqui você implementaria a lógica para salvar as alterações
+  const handleSavePerfil = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('💾 [CompanySettings] Salvando dados do perfil...');
+      
+      // Salvar dados básicos da empresa
+      const { error: userError } = await supabase
+        .from('users')
+        .update({
+          name: user.name,
+          phone: user.phone,
+          avatar_url: user.avatar
+        })
+        .eq('id', user.id);
+      
+      if (userError) throw userError;
+      
+      // Salvar dados do representante se existir
+      if (user.representative) {
+        console.log('👨‍💼 [CompanySettings] Salvando dados do representante...');
+        const { error: repError } = await supabase
+          .from('representatives')
+          .upsert({
+            user_id: user.id,
+            name: user.representative.name,
+            cpf: user.representative.cpf,
+            email: user.representative.email,
+            phone: user.representative.phone,
+            position: user.representative.position,
+            avatar_url: user.representative.avatar_url
+          }, {
+            onConflict: 'user_id'
+          });
+        
+        if (repError) throw repError;
+      }
+      
+      console.log('✅ [CompanySettings] Perfil salvo com sucesso');
+      setHasUnsavedChanges(false);
+      toast({
+        title: 'Sucesso',
+        description: 'Dados do perfil salvos com sucesso!',
+      });
+    } catch (error) {
+      console.error('❌ [CompanySettings] Erro ao salvar perfil:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao salvar dados do perfil.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      // Aqui você implementaria a lógica para atualizar a imagem
+  const handleSaveEndereco = async () => {
+    try {
+      console.log('🏠 [CompanySettings] Salvando endereço...');
+      
+      const { error } = await supabase
+        .from('addresses')
+        .update({
+          logradouro: address.logradouro,
+          numero: address.numero,
+          complemento: address.complemento,
+          bairro: address.bairro,
+          cidade: address.cidade,
+          estado: address.estado,
+          cep: address.cep
+        })
+        .eq('user_id', user?.id)
+        .eq('is_main', true);
+      
+      if (error) throw error;
+      
+      console.log('✅ [CompanySettings] Endereço salvo com sucesso');
+      setHasUnsavedChanges(false);
+      toast({
+        title: 'Sucesso',
+        description: 'Endereço salvo com sucesso!',
+      });
+    } catch (error) {
+      console.error('❌ [CompanySettings] Erro ao salvar endereço:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao salvar endereço.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && user) {
+      try {
+        const file = e.target.files[0];
+        const fileName = `company_logo_${user.id}_${Date.now()}.jpg`;
+        
+        // Upload da imagem
+        const { data, error } = await supabase.storage
+          .from('logotipo')
+          .upload(fileName, file, { upsert: true });
+        
+        if (error) throw error;
+        
+        // Gerar URL pública
+        const { data: publicUrlData } = supabase.storage
+          .from('logotipo')
+          .getPublicUrl(fileName);
+        
+        // Atualizar no banco
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ logo: publicUrlData.publicUrl })
+          .eq('id', user.id);
+        
+        if (updateError) throw updateError;
+        
+        // Atualizar estado local
+        setUser(prev => prev ? { ...prev, avatar: publicUrlData.publicUrl } : null);
+        
+        toast({
+          title: 'Sucesso',
+          description: 'Logo da empresa atualizada com sucesso!',
+        });
+      } catch (error) {
+        console.error('❌ [CompanySettings] Erro ao fazer upload da imagem:', error);
+        toast({
+          title: 'Erro',
+          description: 'Erro ao fazer upload da imagem.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -245,6 +382,35 @@ const CompanySettings: React.FC = () => {
     alert('Conta excluída (simulação).');
   };
 
+  if (loading) {
+    return (
+      <Layout>
+        <div className="container mx-auto p-4">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+              <p>Carregando dados da empresa...</p>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <Layout>
+        <div className="container mx-auto p-4">
+          <Alert variant="destructive">
+            <AlertDescription>
+              Erro ao carregar dados da empresa: {error || 'Usuário não encontrado'}
+            </AlertDescription>
+          </Alert>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="container mx-auto p-4">
@@ -275,8 +441,8 @@ const CompanySettings: React.FC = () => {
                 <div className="flex flex-col items-center mb-8">
                   <div className="relative">
                     <Avatar className="h-24 w-24 mb-4">
-                      <AvatarImage src={companyData.avatar} alt="Logo da Empresa" />
-                      <AvatarFallback>EV</AvatarFallback>
+                      <AvatarImage src={user.avatar} alt="Logo da Empresa" />
+                      <AvatarFallback>{user.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <label 
                       htmlFor="avatar-upload" 
@@ -292,7 +458,7 @@ const CompanySettings: React.FC = () => {
                       />
                     </label>
                   </div>
-                  <h2 className="text-2xl font-bold">{companyData.name}</h2>
+                  <h2 className="text-2xl font-bold">{user.name}</h2>
                   <p className="text-muted-foreground">Gerenciar Perfil</p>
                 </div>
               )}
@@ -303,7 +469,7 @@ const CompanySettings: React.FC = () => {
                     <div>
                       <label className="text-sm font-medium mb-1 block">Nome da Empresa</label>
                       <Input 
-                        value={companyData.name}
+                        value={user.name}
                         onChange={(e) => handleInputChange('name', e.target.value)}
                         className="w-full"
                       />
@@ -312,7 +478,7 @@ const CompanySettings: React.FC = () => {
                     <div>
                       <label className="text-sm font-medium mb-1 block">E-mail</label>
                       <div className="w-full p-2 bg-gray-50 border rounded-md text-muted-foreground">
-                        {companyData.email}
+                        {user.email}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
                         <Info className="h-4 w-4" />
@@ -323,8 +489,8 @@ const CompanySettings: React.FC = () => {
                     <div>
                       <label className="text-sm font-medium mb-1 block">CNPJ</label>
                       <Input 
-                        value={companyData.cnpj}
-                        onChange={(e) => handleInputChange('cnpj', e.target.value)}
+                        value={user.document}
+                        onChange={(e) => handleInputChange('document', e.target.value)}
                         className="w-full"
                       />
                     </div>
@@ -332,12 +498,91 @@ const CompanySettings: React.FC = () => {
                     <div>
                       <label className="text-sm font-medium mb-1 block">Telefone</label>
                       <Input 
-                        value={companyData.phone}
+                        value={user.phone}
                         onChange={(e) => handleInputChange('phone', e.target.value)}
                         className="w-full"
                       />
                     </div>
                   </div>
+
+                  {/* Seção Dados do Representante */}
+                  {user.representative && (
+                    <div className="border-t pt-6 mt-6">
+                      <h3 className="text-lg font-semibold mb-4">Dados do Representante</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Nome do Representante</label>
+                          <Input 
+                            value={user.representative.name}
+                            onChange={(e) => setUser(prev => prev ? {
+                              ...prev,
+                              representative: prev.representative ? {
+                                ...prev.representative,
+                                name: e.target.value
+                              } : undefined
+                            } : null)}
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">CPF</label>
+                          <Input 
+                            value={user.representative.cpf}
+                            onChange={(e) => setUser(prev => prev ? {
+                              ...prev,
+                              representative: prev.representative ? {
+                                ...prev.representative,
+                                cpf: e.target.value
+                              } : undefined
+                            } : null)}
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">E-mail</label>
+                          <Input 
+                            value={user.representative.email}
+                            onChange={(e) => setUser(prev => prev ? {
+                              ...prev,
+                              representative: prev.representative ? {
+                                ...prev.representative,
+                                email: e.target.value
+                              } : undefined
+                            } : null)}
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Telefone</label>
+                          <Input 
+                            value={user.representative.phone}
+                            onChange={(e) => setUser(prev => prev ? {
+                              ...prev,
+                              representative: prev.representative ? {
+                                ...prev.representative,
+                                phone: e.target.value
+                              } : undefined
+                            } : null)}
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Cargo</label>
+                          <Input 
+                            value={user.representative.position}
+                            onChange={(e) => setUser(prev => prev ? {
+                              ...prev,
+                              representative: prev.representative ? {
+                                ...prev.representative,
+                                position: e.target.value
+                              } : undefined
+                            } : null)}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {activeSection === 'endereco' && (
@@ -421,6 +666,7 @@ const CompanySettings: React.FC = () => {
                   )}
                   <div className="flex gap-2 justify-end mt-4">
                     <Button variant="outline" onClick={() => setHasUnsavedChanges(false)}>Cancelar</Button>
+                    <Button onClick={handleSaveEndereco} disabled={!hasUnsavedChanges}>Salvar Endereço</Button>
                   </div>
                 </div>
               )}
@@ -551,12 +797,14 @@ const CompanySettings: React.FC = () => {
           </div>
         </div>
         <div className="flex justify-end mt-6">
-          <Button 
-            className="bg-[#8DC63F] hover:bg-[#8DC63F]/90 text-white"
-            onClick={handleSaveChanges}
-          >
-            Salvar Alterações
-          </Button>
+          {activeSection === 'perfil' && hasUnsavedChanges && (
+            <Button 
+              className="bg-[#8DC63F] hover:bg-[#8DC63F]/90 text-white"
+              onClick={handleSavePerfil}
+            >
+              Salvar Perfil
+            </Button>
+          )}
         </div>
       </div>
 
